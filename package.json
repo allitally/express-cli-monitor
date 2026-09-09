@@ -1,0 +1,29 @@
+{
+  "name": "express-cli-monitor",
+  "version": "1.0.0",
+  "description": "Express + Socket.IO CLI monitor with OpenTUI fullscreen TUI",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=26.4.0"
+  },
+  "scripts": {
+    "start": "node --experimental-ffi src/index.js",
+    "client": "node examples/socket-client.js"
+  },
+  "keywords": [
+    "express",
+    "socket.io",
+    "opentui",
+    "cli",
+    "tui"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@opentui/core": "^0.5.10",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.3"
+  }
+}
