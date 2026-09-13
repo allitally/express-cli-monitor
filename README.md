@@ -25,9 +25,33 @@ npm start
 
 ## 別プロセスから Socket.IO 接続（サンプル）
 
+### Node.js クライアント
+
 ```bash
 npm run client
 ```
+
+### C++ クライアント（socket.io-client-cpp 3.1.0）
+
+CMake 3.14 以上と C++11 対応コンパイラが必要です。初回ビルド時に [socket.io-client-cpp 3.1.0](https://github.com/socketio/socket.io-client-cpp/releases/tag/3.1.0) を FetchContent で取得します。
+
+```bash
+# ターミナル1
+npm start
+
+# ターミナル2 (Visual Studio / Ninja など)
+cmake -S examples/cpp-client -B examples/cpp-client/build
+cmake --build examples/cpp-client/build --config Release
+examples/cpp-client/build/Release/monitor_cpp_client.exe   # Windows (multi-config)
+examples/cpp-client/build/monitor_cpp_client               # Linux / macOS
+
+# ターミナル2 (MSYS2 UCRT64 + MinGW)
+cmake -G 'MinGW Makefiles' -S examples/cpp-client -B examples/cpp-client/build
+cmake --build examples/cpp-client/build
+examples/cpp-client/build/monitor_cpp_client.exe
+```
+
+接続先は環境変数 `MONITOR_URL` で変更できます（既定: `http://localhost:3000`）。
 
 `remote-output` イベントで送ったメッセージがパネル **B** に表示されます。
 
