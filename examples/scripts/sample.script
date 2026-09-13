@@ -1,0 +1,15 @@
+# Socket.IO client test script
+# Format: <event> [arg1 [arg2 ...]]
+# Next line may be Ack:<expected> or Pass:
+
+remote-output hello from script
+Ack: ok
+
+remote-output "message with spaces"
+Ack: ok
+
+array-payload sports economics news
+Ack: ["sports","economics","news"]
+
+array-payload quick test
+Pass:

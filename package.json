@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node --experimental-ffi src/index.js",
+    "start:script": "node --experimental-ffi src/index.js -- --script examples/scripts/sample.script",
     "client": "node examples/socket-client.js"
   },
   "keywords": [

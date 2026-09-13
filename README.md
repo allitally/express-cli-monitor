@@ -23,6 +23,50 @@ npm install
 npm start
 ```
 
+## スクリプトによるクライアントテスト
+
+起動時に `--script`（`-s`）でスクリプトファイルを指定するか、TUI のコマンド入力で `load <file>` を実行すると、内蔵 Socket.IO クライアントが 1 行ずつイベントを送信して ACK を検証します。終了時に正常終了か ACK 不一致かをパネル C とコンソールへ出力します。
+
+```bash
+npm start -- --script examples/scripts/sample.script
+```
+
+TUI 起動後:
+
+```
+load examples/scripts/sample.script
+```
+
+### スクリプト形式
+
+```
+<ソケットメッセージ> [<引数1> [<引数2> ...]]
+Ack:<期待するACK文字列>
+```
+
+- 引数はスペース区切り。ダブルクォート `"..."` で空白を含む 1 引数にできます。
+- イベント行の次行が `Ack:` で始まる場合、その後の文字列と ACK 応答が一致すれば PASS、不一致ならテスト中断（終了コード 1）。
+- 次行が `Pass:` の場合は ACK を待たず次の送信へ進みます。
+- `#` で始まる行と空行は無視します。
+
+### ペイロード変換（コールバック）
+
+`src/script/payloadEncoders.js` で `<ソケットメッセージ>` 名をキーに、引数配列から Socket.IO ペイロードへ変換する関数を登録します。
+
+```javascript
+import { registerPayloadEncoder, registerAckHandler } from "./script/payloadEncoders.js";
+
+registerPayloadEncoder("my-event", (args) => ({ items: args }));
+registerAckHandler("my-event", (payload) => JSON.stringify(payload));
+```
+
+組み込みサンプル:
+
+| イベント | 変換 |
+|---------|------|
+| `remote-output` | `{ message: args.join(" ") }` |
+| `array-payload` | 引数配列をそのまま JSON 配列ペイロードにする |
+
 ## 別プロセスから Socket.IO 接続（サンプル）
 
 ### Node.js クライアント
