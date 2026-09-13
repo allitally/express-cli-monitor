@@ -144,8 +144,12 @@ export async function runScript({
   monitor,
   ackTimeoutMs = DEFAULT_ACK_TIMEOUT_MS,
 }) {
-  const writePanelC = monitor?.writePanelC;
-  const setStatus = monitor?.setStatus;
+  const writePanelC = monitor?.writePanelC
+    ? (text, color) => monitor.writePanelC(text, color)
+    : undefined;
+  const setStatus = monitor?.setStatus
+    ? (text, color) => monitor.setStatus(text, color)
+    : undefined;
 
   let steps;
   try {
