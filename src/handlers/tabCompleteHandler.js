@@ -52,6 +52,7 @@ export function onTabComplete(args) {
     }
   }
 
+  
   // コマンド名補完の例
   const commands = ["help", "status", "clear", "load", "quit"];
   const matches = commands.filter((c) => c.startsWith(cmd));

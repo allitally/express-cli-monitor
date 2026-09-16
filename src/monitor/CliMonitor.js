@@ -9,6 +9,7 @@ import {
   t,
 } from "@opentui/core";
 
+
 const MAX_LOG_LINES = 5000;
 
 /** @param {string} text */
@@ -183,6 +184,7 @@ export class CliMonitor {
 
     /** @type {typeof console.log | null} */
     this._originalConsoleLog = null;
+    this.baseStatus = "";
   }
 
   /**
@@ -190,9 +192,28 @@ export class CliMonitor {
    * @param {string} text
    * @param {string} [color='#00FF00']
    */
+  clearStatus(text, color = "#00FF00") {
+    if (!this.statusText) return;
+    this.statusText.content = "";
+  }
+  /**
+   * 3-1 ステータス行へ色付き文字列を表示
+   * @param {string} text
+   * @param {string} [color='#00FF00']
+   */
   setStatus(text, color = "#00FF00") {
     if (!this.statusText) return;
-    this.statusText.content = t`${fg(color)(text)}`;
+    this.baseStatus = t`${fg(color)(text)}`;
+  }
+  /**
+   * 3-1 ステータス行へ色付き文字列を表示
+   * @param {string} text
+   * @param {string} [color='#00FF00']
+   */
+  addtatus(text, color = "#00FF00") {
+    if (!this.statusText) return;
+    this.baseStatus = t`${this.baseStatus}${fg(color)(text)}`;
+    this.statusText.content =this.baseStatus
   }
 
   /**
@@ -243,7 +264,10 @@ export class CliMonitor {
     this.renderer?.destroy();
     this.renderer = null;
   }
-
+  setConsoleCommands(socket,cmd_interpreters){
+        this.m_socket = socket;
+    this.onCommandExecute = cmd_interpreters;
+  }
   #buildLayout() {
     if (!this.renderer) return;
 
@@ -346,7 +370,14 @@ export class CliMonitor {
     }
 
     const args = splitArgs(trimmed);
-    await this.onCommandExecute(commandText, args);
+    try {
+//      await this.onCommandExecute(commandText, args,this.m_socket,"","",this);
+      await this.onCommandExecute(commandText, args);
+    } catch (err) {
+      const message = `Error executing command: ${err instanceof Error ? err.message : String(err)}, ${commandText}`;
+      console.error(message);
+      this.writePanelC(message, "#f7768e");
+    }
     this.commandInput.setText("");
   }
 

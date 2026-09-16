@@ -129,7 +129,77 @@ export function logScriptResult(result, logTarget = {}) {
   console.error(message);
   writePanelC?.(message, "#f7768e");
 }
+export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ackTimeoutMs){
+  monitor.writePanelC(`Script: ${stepNo}:${step.args[0]}`, "#bb9af7");
+      let payload;
+      try {
+        payload = encodePayload(step.event, step.args, monitor);
+          monitor.writePanelC(`retrun: ${stepNo}:${JSON.stringify(step.args)}`, "#bb9af7");
 
+      } catch (err) {
+        return fail(scriptPath, {
+          reason: "encoder_error",
+          stepNo,
+          event: step.event,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      monitor.writePanelC?.(
+        `[${stepNo}] emit ${step.event} ${JSON.stringify(payload)}`,
+        "#7aa2f7",
+      );
+
+      if (step.ackMode === "pass") {
+        socket.emit(step.event, payload);
+        monitor.writePanelC?.(`[${stepNo}] PASS (skip ack)`, "#9ece6a");
+        return {ok:true};
+      }
+
+      if (step.ackMode === "ack") {
+        let received;
+        try {
+          received = await emitWithAck(
+            socket,
+            step.event,
+            payload,
+            ackTimeoutMs,
+          );
+        } catch (err) {
+          return fail(scriptPath, {
+            reason: "ack_timeout",
+            stepNo,
+            event: step.event,
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+        const receivedText = ackToString(received);
+        const expectedText = step.expectedAck ?? "";
+
+        if (receivedText !== expectedText) {
+          writePanelC?.(
+            `[${stepNo}] FAIL expected Ack: ${expectedText}, got: ${receivedText}`,
+            "#f7768e",
+          );
+          setStatus?.("Script failed", "#f7768e");
+          return fail(scriptPath, {
+            reason: "ack_mismatch",
+            stepNo,
+            event: step.event,
+            expected: expectedText,
+            got: receivedText,
+            message: `ACK mismatch at step ${stepNo}`,
+          });
+        }
+
+        monitor.writePanelC?.(`[${stepNo}] PASS Ack: ${receivedText}`, "#9ece6a");
+        return {ok:true};
+      }
+
+      socket.emit(step.event, payload);
+
+  return {ok:true};
+}
 /**
  * @param {object} options
  * @param {string} options.scriptPath
@@ -143,6 +213,7 @@ export async function runScript({
   url,
   monitor,
   ackTimeoutMs = DEFAULT_ACK_TIMEOUT_MS,
+  parent_socket = undefined
 }) {
   const writePanelC = monitor?.writePanelC
     ? (text, color) => monitor.writePanelC(text, color)
@@ -172,7 +243,7 @@ export async function runScript({
   writePanelC?.(`Script: ${scriptPath}`, "#bb9af7");
   setStatus?.("Running script...", "#7dcfff");
 
-  const socket = io(url, {
+  const socket = parent_socket||io(url, {
     reconnection: false,
     forceNew: true,
   });
@@ -193,71 +264,13 @@ export async function runScript({
       const step = steps[i];
       const stepNo = i + 1;
 
-      let payload;
-      try {
-        payload = encodePayload(step.event, step.args);
-      } catch (err) {
-        return fail(scriptPath, {
-          reason: "encoder_error",
-          stepNo,
-          event: step.event,
-          message: err instanceof Error ? err.message : String(err),
-        });
+      received = await run1Line(stepNo,step,socket,scriptPath,
+                                url,
+                                monitor,
+                                ackTimeoutMs);
+      if (!received.ok) {
+        return received;
       }
-
-      writePanelC?.(
-        `[${stepNo}] emit ${step.event} ${JSON.stringify(payload)}`,
-        "#7aa2f7",
-      );
-
-      if (step.ackMode === "pass") {
-        socket.emit(step.event, payload);
-        writePanelC?.(`[${stepNo}] PASS (skip ack)`, "#9ece6a");
-        continue;
-      }
-
-      if (step.ackMode === "ack") {
-        let received;
-        try {
-          received = await emitWithAck(
-            socket,
-            step.event,
-            payload,
-            ackTimeoutMs,
-          );
-        } catch (err) {
-          return fail(scriptPath, {
-            reason: "ack_timeout",
-            stepNo,
-            event: step.event,
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
-
-        const receivedText = ackToString(received);
-        const expectedText = step.expectedAck ?? "";
-
-        if (receivedText !== expectedText) {
-          writePanelC?.(
-            `[${stepNo}] FAIL expected Ack: ${expectedText}, got: ${receivedText}`,
-            "#f7768e",
-          );
-          setStatus?.("Script failed", "#f7768e");
-          return fail(scriptPath, {
-            reason: "ack_mismatch",
-            stepNo,
-            event: step.event,
-            expected: expectedText,
-            got: receivedText,
-            message: `ACK mismatch at step ${stepNo}`,
-          });
-        }
-
-        writePanelC?.(`[${stepNo}] PASS Ack: ${receivedText}`, "#9ece6a");
-        continue;
-      }
-
-      socket.emit(step.event, payload);
     }
 
     setStatus?.("Script passed", "#9ece6a");
@@ -272,7 +285,9 @@ export async function runScript({
       message: err instanceof Error ? err.message : String(err),
     });
   } finally {
-    socket.disconnect();
-    socket.close();
+    if (!parent_socket) {
+        socket.disconnect();
+        socket.close();
+    }
   }
 }

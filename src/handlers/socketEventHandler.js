@@ -38,6 +38,38 @@ export function registerSocketEventHandlers(socket, { appendPanelB }) {
     };
 
   socket.on(REMOTE_OUTPUT_EVENT, handleEvent(REMOTE_OUTPUT_EVENT));
+  socket.on("image_binary", 
+    (eventNmae,{ toPanelB = true } = {}) =>
+    (payload,ack) =>{
+      if (typeof ack === "function") {
+        ack(produceAck(eventNmae, payload));
+      }
+   });
+  socket.on("other_info", 
+    (eventNmae,{ toPanelB = true } = {}) =>
+    (payload,ack) =>{
+      if (typeof ack === "function") {
+        ack(produceAck(eventNmae, payload));
+      }
+   });
+  socket.on("notice_record_complete", 
+    (eventNmae,{ toPanelB = true } = {}) =>
+    (payload,ack) =>{
+      if (typeof ack === "function") {
+        ack(produceAck(eventNmae, payload));
+      }
+   });
+  socket.on("send_ips_message", 
+    (eventNmae,{ toPanelB = true } = {}) =>
+    (payload,ack) =>{
+      line = formatRemoteOutput(payload);
+ //     console.log(`log:${line}`);
+      appendPanelB(line);
+      if (typeof ack === "function") {
+        ack(produceAck(eventNmae, payload));
+      }
+   });
+
 
   for (const eventName of getRegisteredEventNames()) {
     if (eventName === REMOTE_OUTPUT_EVENT) {
