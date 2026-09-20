@@ -162,6 +162,8 @@ namespace {
                                     const sio::message::list& args = event.get_messages();
                                     sio::message::list ack;
                                     auto rvalues = sio::object_message::create();
+                                    
+                                    std::cerr << "queried." << std::endl;
                                     std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("stage",m_stage);
                                    event.put_ack_message(rvalues);
              });
@@ -171,6 +173,7 @@ namespace {
                     sio::message::list ack;
                     const sio::message::list& args = event.get_messages();
                     sio::message::ptr ackst;
+
                     if (args.size() < 1) {
                         ackst = sio::string_message::create("No Recorder Query Key");
                     }
@@ -189,7 +192,8 @@ namespace {
                 });
             client.socket()->on("exec_ips0"
                                 , [this](sio::event & event) {
-                    std::cout << "exec_ips0" << std::endl;
+                                    
+                                    std::cout << "exec_ips0" << std::endl;
                                     m_stage="in_mipi_init";
                                     event.put_ack_message(ok_msg);
                                     {

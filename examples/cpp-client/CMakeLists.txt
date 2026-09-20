@@ -62,5 +62,9 @@ apply_sioclient_cstdint_fix(monitor_cpp_client)
 if(MSVC)
   target_compile_options(monitor_cpp_client PRIVATE /W4)
 else()
-  target_compile_options(monitor_cpp_client PRIVATE -Wall -Wextra -Wpedantic)
+  target_compile_options(monitor_cpp_client PRIVATE
+    -Wall -Wextra -Wpedantic
+    $<$<CONFIG:Debug>:-g -O0>
+  )
+
 endif()

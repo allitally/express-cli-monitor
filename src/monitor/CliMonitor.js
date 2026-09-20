@@ -210,7 +210,7 @@ export class CliMonitor {
    * @param {string} text
    * @param {string} [color='#00FF00']
    */
-  addtatus(text, color = "#00FF00") {
+  addStatus(text, color = "#00FF00") {
     if (!this.statusText) return;
     this.baseStatus = t`${this.baseStatus}${fg(color)(text)}`;
     this.statusText.content =this.baseStatus

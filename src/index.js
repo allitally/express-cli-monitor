@@ -135,6 +135,7 @@ createSocketServer({
         monitor.setStatus("ログをクリアしました", "#9ece6a");
       } else if (cmd === "help") {
         monitor.writePanelC("help | status | clear | load | quit", "#bb9af7");
+      } else if (cmd === "list_encoder") {
       } else if (cmd === "send") {
         await onCommandExecute(commandText,args.slice(1),socket,"","",monitor);
  
@@ -157,7 +158,7 @@ createSocketServer({
       }
     });
     const timerId = setInterval(() => {
-            
+
         try {
           monitor.setStatus(`Stage:${stagev}, FPS: ${fps_state}, Recorder: ${state_rec}`, "#00af68");
         } catch (e) {
@@ -195,7 +196,7 @@ createSocketServer({
                     monitor.writePanelC(erlog, "#f7768e");
                     return;
                   } else {
-                    monitor.addtatus(`,Recorder: ${response["state"]}` , "#7aa2f7");          
+                    monitor.addStatus(`,Recorder: ${response["state"]}` , "#7aa2f7");          
             }
             }
         );
@@ -206,25 +207,29 @@ createSocketServer({
             },
             (err, response) => {
                 checking.qp = false;
-checking.qpf
+                checking.qpf=false;
+                
                 if (err) {
                   erlog = 
                         `クライアント ${socket.id} から応答がありません`;
                     monitor.writePanelC(erlog, "#f7768e");
                     return;
                  } else {
-                stagev=response["stage"];
-                if (stagev === undefined) {
-                    stagev = JSON.stringify(response, null, 2);
-               }
-               monitor.addtatus(`,Stage: ${stagev}` , "#7aa2f7");
-
+                     stagev=response["stage"];
+                     if (stagev === undefined) {
+                         stagev = JSON.stringify(response, null, 2);
+                     }
+                     monitor.addStatus(`,Stage: ${stagev}` , "#7aa2f7");
+                     // monitor.setStatus(`,Stage: ${stagev}` , "#7aa2f7");
                  }
             }
         );
         
     }, 5000); // 5秒間隔
-
+    socket.on("send_ips_message", () => {
+        onCommandExecute("exec_ips title ...",["exec_ips","title",".","","file"],socket,"","",monitor);
+        
+    });
     socket.on("disconnect", () => {
       console.log(`[socket.io] 切断: ${socket.id}`);
       monitor.setStatus("Client disconnected", "#e0af68");
