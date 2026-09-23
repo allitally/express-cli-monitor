@@ -107,7 +107,7 @@ registerPayloadEncoder("exec_ips0", (args) => {
     }
     let enc_arg=[args[1],args[2],args[3]];
     if (args.length > 4) {
-        lineres = [];
+        let lineres = [];
         try {
             lineres = read_to_lines(args[4]);
         } catch (err) {
@@ -137,7 +137,7 @@ registerPayloadEncoder("exec_ips", (args) => {
     if (args.length > 4) {
         try {
             // load & multi lines
-            lines = read_to_lines(args[4]);
+            let lines = read_to_lines(args[4]);
             enc_arg.push(lines);
         } catch (err) {
               console.error(err instanceof Error ? err.message : err);
