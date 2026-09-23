@@ -1,0 +1,13 @@
+# coding: cp932
+################################
+#
+#
+#
+################################
+
+setup {
+  no_handshake()
+    parameter_set(Bparam12, DWORD, 4,1,0,0,0)
+    parameter_set(Bparam13, DWORD, 8,0x09,0,0,0,0,0,0,0)
+    parameter_set(Bparam14, DWORD, 4,0,0,0,0)
+}

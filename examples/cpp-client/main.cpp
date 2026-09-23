@@ -163,8 +163,16 @@ namespace {
                                     sio::message::list ack;
                                     auto rvalues = sio::object_message::create();
                                     
-                                    std::cerr << "queried." << std::endl;
+                                    // std::cerr << "queried." << std::endl;
                                     std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("stage",m_stage);
+                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("fps","1");
+                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("camera_type"   ,"--");
+                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("frame_number"  ,"--");
+                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("firmware"      ,"--");
+                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("rt_error"      ,"--");
+                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("compile_id"    ,"--");
+                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("exec_result"   ,"--");
+                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("compile_result","--");
                                    event.put_ack_message(rvalues);
              });
             client.socket()->on("query_recorder"

@@ -1,3 +1,16 @@
+// const fs = require("fs");
+import { open } from 'node:fs/promises';
+// import { fsPromises };
+import iconv_pkg from 'iconv-lite';
+const {iconv} = iconv_pkg;
+
+// // Shift-JISファイルをBufferとして読み込む
+// const buffer = fs.readFileSync("sample.txt");
+
+// // Shift-JIS → JavaScript文字列(Unicode)へ変換
+// const text = iconv.decode(buffer, "Shift_JIS");
+
+
 import { parseCliArgs, printUsage } from "./cli/parseArgs.js";
 import { CliMonitor } from "./monitor/CliMonitor.js";
 import { onCommandExecute } from "./handlers/commandHandler.js";
@@ -23,12 +36,89 @@ if (cliOptions.help) {
   printUsage();
   process.exit(0);
 }
+function generate_query_process_result(response)
+{
+    const keys = ["stage"         
+    ,   "fps"           
+    ,   "camera_type"   
+    ,   "frame_number"  
+    ,   "firmware"      
+    ,   "rt_error"      
+    ,   "compile_id"    
+    ,   "exec_result"   
+    ,   "compile_result"];
+
+    let combined = ""
+    let break_by_no_key = false;
+    let kcount = 0;
+    for (const key of keys) {
+        kcount += 1;
+        let mapv = "--";
+        try {
+            mapv=response[key];
+            if (mapv === undefined) {
+                combined += JSON.stringify(response, null, 2);
+                break_by_no_key = true;
+            }
+        } catch (ek) {
+            combined += JSON.stringify(response, null, 2);
+            break_by_no_key = true;
+        }
+        if (key=="stage") {
+            combined += `Stage: ${mapv}`;
+        } else if (key=="camera_type"   ) {
+            combined += `,Camera: ${mapv}`;
+        } else if (key=="frame_number"  ) {
+            combined += `,Fnum: ${mapv}`;
+        } else if (key=="fps"           ) {
+            combined += `,FPS: ${mapv}`;
+        } else if (key=="firmware"      ) {
+            combined += `,Firm: ${mapv}`;
+        } else if (key=="rt_error"      ) {
+            combined += `,RTE: ${mapv}`;
+        } else if (key=="compile_id"    ) {
+            combined += `,CompID: ${mapv}`;
+        } else if (key=="exec_result"   ) {
+            combined += `,Exec: ${mapv}`;
+        } else if (key=="compile_result") {
+            combined += `,CEr: ${mapv}`;
+        }
+        if (break_by_no_key) {
+            break;
+        }
+    }
+    monitor.addStageStatus( `${kcount}/${combined}`, "#7aa2f7");
+    // monitor.setStatus(`,Stage: ${stagev}` , "#7aa2f7");
+    
+}
+///////////////////////////////////////
+async function read_to_lines(path)
+{
+    const fd = await open(path);
+    const strm = fd.createReadStream({encoding:'cp932'});
+    lines = strm.readLines()
+
+    return lines;
+}
 ///////////////////////////////////////
 registerPayloadEncoder("exec_ips0", (args) => {
     if (args.length < 4) {
       throw new Error("exec_ips0 encoder requires at least 4 arguments");
     }
-    return args.slice(1);
+    let enc_arg=[args[1],args[2],args[3]];
+    if (args.length > 4) {
+        lineres = [];
+        try {
+            lineres = read_to_lines(args[4]);
+        } catch (err) {
+            console.error(err instanceof Error ? err.message : err);
+        }
+        enc_arg.push(lineres);
+        if (args.length > 5) {
+            enc_arg.push(args[5]);
+        }
+    }
+    return enc_arg;
   } 
 );
 ///////////////////////////////////////
@@ -36,10 +126,27 @@ registerPayloadEncoder("exec_ips", (args) => {
     if (args.length < 4) {
       throw new Error("exec_ips encoder requires at least 4 arguments");
     }
-    return args.slice(1);
+    let enc_arg=[];
+    // title
+    enc_arg.push(args[1]);
+    // root
+    enc_arg.push(args[2]);
+    // 1 line    
+    enc_arg.push(args[3]);
+    
+    if (args.length > 4) {
+        try {
+            // load & multi lines
+            lines = read_to_lines(args[4]);
+            enc_arg.push(lines);
+        } catch (err) {
+              console.error(err instanceof Error ? err.message : err);
+        }
+    }    
+    return enc_arg;
   } 
 );
-/* ///////////////////////////////////////
+///////////////////////////////////////
 registerPayloadEncoder("query_recorder", (args) => {
     if (args.length < 2) {
       throw new Error("query_recorder encoder requires at least 2 arguments");
@@ -103,7 +210,6 @@ registerPayloadEncoder("set_datarec_path", (args) => {
     return args.slice(1);
   } 
 );
- *////////////////////////////////////////
 const monitor = new CliMonitor({
   onCommandExecute: undefined,
   onTabComplete,
@@ -159,15 +265,15 @@ createSocketServer({
     });
     const timerId = setInterval(() => {
 
-        try {
-          monitor.setStatus(`Stage:${stagev}, FPS: ${fps_state}, Recorder: ${state_rec}`, "#00af68");
-        } catch (e) {
-          let responseStr = JSON.stringify(response, null, 2);
-          console.log(
-            `response の値:`,
-            responseStr
-          );
-        }
+        // try {
+
+        // } catch (e) {
+        //   let responseStr = JSON.stringify(response, null, 2);
+        //   console.log(
+        //     `response の値:`,
+        //     responseStr
+        //   );
+        // }
 
 /*                 console.log(
             `クライアント ${socket.id} の状態:`,
@@ -196,8 +302,8 @@ createSocketServer({
                     monitor.writePanelC(erlog, "#f7768e");
                     return;
                   } else {
-                    monitor.addStatus(`,Recorder: ${response["state"]}` , "#7aa2f7");          
-            }
+                    monitor.addStatus(`Recorder: ${response["state"]}` , "#7aa2f7");
+                  }
             }
         );
         socket.timeout(3000).emit(
@@ -215,12 +321,7 @@ createSocketServer({
                     monitor.writePanelC(erlog, "#f7768e");
                     return;
                  } else {
-                     stagev=response["stage"];
-                     if (stagev === undefined) {
-                         stagev = JSON.stringify(response, null, 2);
-                     }
-                     monitor.addStatus(`,Stage: ${stagev}` , "#7aa2f7");
-                     // monitor.setStatus(`,Stage: ${stagev}` , "#7aa2f7");
+                     generate_query_process_result(response);                     
                  }
             }
         );
