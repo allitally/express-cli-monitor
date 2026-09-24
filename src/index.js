@@ -108,18 +108,19 @@ registerPayloadEncoder("exec_ips0", (args) => {
     let enc_arg=[args[1],args[2],args[3]];
     if (args.length > 4) {
         let lineres = [];
-        try {
-            lineres = read_to_lines(args[4]);
-        } catch (err) {
-            console.error(err instanceof Error ? err.message : err);
-        }
+        lineres = read_to_lines(args[4]);
+        // try {
+        //     lineres = read_to_lines(args[4]);
+        // } catch (err) {
+        //     console.error(err instanceof Error ? err.message : err);
+        // }
         enc_arg.push(lineres);
         if (args.length > 5) {
             enc_arg.push(args[5]);
         }
     }
     return enc_arg;
-  } 
+  }
 );
 ///////////////////////////////////////
 registerPayloadEncoder("exec_ips", (args) => {
@@ -251,10 +252,10 @@ createSocketServer({
           return;
         }
         const result = await runScript({
-          scriptPath: args[1],
-          url: SCRIPT_URL,
-          monitor,
-          parent_socket: socket
+            scriptPath: args[1],
+            url: SCRIPT_URL,
+            monitor: monitor,
+            parent_socket: socket
         });
         logScriptResult(result, { writePanelC: (text, color) => monitor.writePanelC(text, color) });
       } else if (cmd === "quit" || cmd === "exit") {

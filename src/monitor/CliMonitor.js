@@ -217,7 +217,7 @@ export class CliMonitor {
   }
     setStatus(text, color = "#00FF00") {
         this.baseStatus = text
-        this.addStatus("",color);
+        this.addStatus(text,color);
     }
   /**
    * 3-4 パネルCへ色付き文字列を出力

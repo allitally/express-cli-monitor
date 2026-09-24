@@ -25,6 +25,6 @@ export async function onCommandExecute(commandText, args,socket,scriptPath, url,
   } catch (err) {
     const message = `Error executing command: ${err instanceof Error ? err.message : String(err)}, ${commandText}`;
     monitor.writePanelC(message, "#f7768e");
-    console.error(message);
+    // console.error(message);
   }
 }

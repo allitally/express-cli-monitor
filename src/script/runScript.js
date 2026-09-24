@@ -91,11 +91,11 @@ function waitForConnect(socket) {
  */
 function fail(scriptPath, details) {
   return {
-    ok: false,
-    scriptPath,
-    reason: "unknown",
-    message: "Script failed",
-    ...details,
+      ok: false,
+      scriptPath,
+      reason: "unknown",
+      message: "Script failed",
+      ...details,
   };
 }
 
@@ -104,7 +104,8 @@ function fail(scriptPath, details) {
  * @param {{ writePanelC?: (text: string, color?: string) => void }} [logTarget]
  */
 export function logScriptResult(result, logTarget = {}) {
-  const writePanelC = logTarget.writePanelC;
+    const writePanelC = logTarget.writePanelC;
+    writePanelC(`Defined WritePanelC in logScriptResult:${JSON.stringify(result)}`,"#f7768e");
 
   if (result.ok) {
     const message = `[script] OK: ${result.scriptPath} (${result.stepsExecuted} steps)`;
@@ -134,21 +135,21 @@ export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ack
       let payload;
       try {
         payload = encodePayload(step.event, step.args, monitor);
-          monitor.writePanelC(`retrun: ${stepNo}:${JSON.stringify(step.args)}`, "#bb9af7");
+          // monitor.writePanelC(`retrun: ${stepNo}:${JSON.stringify(step.args)}`, "#bb9af7");
 
       } catch (err) {
         payload = encodePayload(step.event, step.args, monitor);
           monitor.writePanelC(`catch: ${stepNo}:${JSON.stringify(step.args)}`, "#bb9af7");
         return fail(scriptPath, {
-          reason: "encoder_error",
-          stepNo,
-          event: step.event,
-          message: err instanceof Error ? err.message : String(err),
+            reason : "encoder_error",
+            stepNo : stepNo,
+            event  : step.event,
+            message: err instanceof Error ? err.message : String(err),
         });
       }
 
       monitor.writePanelC?.(
-        `[${stepNo}] emit ${step.event} ${JSON.stringify(payload)}`,
+        `[No.${stepNo}] emit ${step.event} ${JSON.stringify(payload)}`,
         "#7aa2f7",
       );
 
@@ -162,17 +163,17 @@ export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ack
         let received;
         try {
           received = await emitWithAck(
-            socket,
-            step.event,
-            payload,
-            ackTimeoutMs,
+              socket,
+              step.event,
+              payload,
+              step.timeOut?? ackTimeoutMs
           );
         } catch (err) {
           return fail(scriptPath, {
-            reason: "ack_timeout",
-            stepNo,
-            event: step.event,
-            message: err instanceof Error ? err.message : String(err),
+              reason: "ack_timeout",
+              stepNo: stepNo,
+              event: step.event,
+              message: err instanceof Error ? err.message : String(err),
           });
         }
         const receivedText = ackToString(received);
@@ -185,12 +186,12 @@ export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ack
           );
           setStatus?.("Script failed", "#f7768e");
           return fail(scriptPath, {
-            reason: "ack_mismatch",
-            stepNo,
-            event: step.event,
-            expected: expectedText,
-            got: receivedText,
-            message: `ACK mismatch at step ${stepNo}`,
+              reason: "ack_mismatch",
+              stepNo: stepNo,
+              event: step.event,
+              expected: expectedText,
+              got: receivedText,
+              message: `ACK mismatch at step ${stepNo}`,
           });
         }
 
