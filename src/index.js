@@ -310,7 +310,7 @@ createSocketServer({
                 checking.qr = false;
 
                 if (err) {
-                    erlog = 
+                    const erlog = 
                         `クライアント ${socket.id} から応答がありません`;
                     monitor.writePanelC(erlog, "#f7768e");
                     return;
@@ -337,7 +337,7 @@ createSocketServer({
                 checking.qpf=false;
                 
                 if (err) {
-                  erlog = 
+                  const erlog = 
                         `クライアント ${socket.id} から応答がありません`;
                     monitor.writePanelC(erlog, "#f7768e");
                     return;
