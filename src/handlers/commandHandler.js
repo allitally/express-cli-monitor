@@ -9,7 +9,8 @@ const DEFAULT_ACK_TIMEOUT_MS = 5000;
  * @param {string[]} args - 空白区切りで分割した引数配列
  * @returns {Promise<void>|void}
  */
-export async function onCommandExecute(commandText, args,socket,scriptPath, url, monitor) {
+export async function onCommandExecute(commandText, args,socket,scriptPath, url, monitor
+                                       , on_events) {
   const step = {
     event : "NoEvent",
     args: args,
@@ -21,7 +22,8 @@ export async function onCommandExecute(commandText, args,socket,scriptPath, url,
   }
   //steps.push({ event, args, ackMode, expectedAck });
   try {
-    await run1Line(0,step, socket, scriptPath, url, monitor, DEFAULT_ACK_TIMEOUT_MS);
+      await run1Line(0,step, socket, scriptPath, url, monitor, DEFAULT_ACK_TIMEOUT_MS
+                     , on_events);
   } catch (err) {
     const message = `Error executing command: ${err instanceof Error ? err.message : String(err)}, ${commandText}`;
     monitor.writePanelC(message, "#f7768e");

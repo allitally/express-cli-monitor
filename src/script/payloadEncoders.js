@@ -39,13 +39,13 @@ export function getRegisteredEventNames() {
  * @param {string} eventName
  * @param {string[]} args
  */
-export function encodePayload(eventName, args, monitor=undefined) {
+export async function encodePayload(eventName, args, monitor=undefined) {
   const encoder = payloadEncoders[eventName];
   if (!encoder) {
     throw new Error(`No payload encoder registered for event: ${eventName}`);
   }
   monitor.writePanelC(`encodePayload: ${eventName}:${JSON.stringify(args)}`, "#bb9af7");
-  return encoder(args);
+  return await encoder(args);
 }
 
 /**

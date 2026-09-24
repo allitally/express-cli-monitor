@@ -101,14 +101,14 @@ async function read_to_lines(path)
     return lines;
 }
 ///////////////////////////////////////
-registerPayloadEncoder("exec_ips0", (args) => {
+registerPayloadEncoder("exec_ips0", async (args) => {
     if (args.length < 4) {
       throw new Error("exec_ips0 encoder requires at least 4 arguments");
     }
     let enc_arg=[args[1],args[2],args[3]];
     if (args.length > 4) {
         let lineres = [];
-        lineres = read_to_lines(args[4]);
+        lineres = await read_to_lines(args[4]);
         // try {
         //     lineres = read_to_lines(args[4]);
         // } catch (err) {
@@ -123,7 +123,7 @@ registerPayloadEncoder("exec_ips0", (args) => {
   }
 );
 ///////////////////////////////////////
-registerPayloadEncoder("exec_ips", (args) => {
+registerPayloadEncoder("exec_ips", async (args) => {
     if (args.length < 4) {
       throw new Error("exec_ips encoder requires at least 4 arguments");
     }
@@ -138,10 +138,10 @@ registerPayloadEncoder("exec_ips", (args) => {
     if (args.length > 4) {
         try {
             // load & multi lines
-            let lines = read_to_lines(args[4]);
+            let lines = await read_to_lines(args[4]);
             enc_arg.push(lines);
         } catch (err) {
-              console.error(err instanceof Error ? err.message : err);
+            throw new Error(`${args[0]}:${JSON.stringify(err)}`);
         }
     }    
     return enc_arg;
@@ -205,8 +205,8 @@ registerPayloadEncoder("REPL_cmd", (args) => {
 );
 ///////////////////////////////////////
 registerPayloadEncoder("set_datarec_path", (args) => {
-    if (args.length < 5) {
-      throw new Error("set_datarec_path encoder requires at least 5 arguments");
+    if (args.length < 4) {
+      throw new Error("set_datarec_path encoder requires at least 4 arguments");
     }
     return args.slice(1);
   } 
@@ -215,6 +215,16 @@ const monitor = new CliMonitor({
   onCommandExecute: undefined,
   onTabComplete,
 });
+
+///////////////////////////////////////
+// 動的メッセージイベントハンドラ
+///////////////////////////////////////
+/**
+ * @typedef {(...args: unknown[]) => void} SocketHandler
+ */
+
+/** @type {Map<string, SocketHandler>} */
+var g_messageOnEvt = new Map();
 
 createSocketServer({
   port: PORT,
@@ -244,7 +254,8 @@ createSocketServer({
         monitor.writePanelC("help | status | clear | load | quit", "#bb9af7");
       } else if (cmd === "list_encoder") {
       } else if (cmd === "send") {
-        await onCommandExecute(commandText,args.slice(1),socket,"","",monitor);
+          await onCommandExecute(commandText,args.slice(1),socket,"","",monitor
+                                 , g_messageOnEvt);
  
       } else if (cmd === "load") {
         if (args.length < 2) {
@@ -255,7 +266,8 @@ createSocketServer({
             scriptPath: args[1],
             url: SCRIPT_URL,
             monitor: monitor,
-            parent_socket: socket
+            parent_socket: socket,
+            on_events: g_messageOnEvt
         });
         logScriptResult(result, { writePanelC: (text, color) => monitor.writePanelC(text, color) });
       } else if (cmd === "quit" || cmd === "exit") {
@@ -308,7 +320,15 @@ createSocketServer({
             }
         );
         socket.timeout(3000).emit(
-            "query_process",["stage","fps"],
+            "query_process",["stage","fps"
+                             ,"camera_type"   
+                             ,"frame_number"  
+                             ,"firmware"      
+                             ,"rt_error"      
+                             ,"compile_id"    
+                             ,"exec_result"   
+                             ,"compile_result"
+                            ],
             {
                 serverTime: Date.now()
             },
@@ -328,10 +348,7 @@ createSocketServer({
         );
         
     }, 5000); // 5秒間隔
-    socket.on("send_ips_message", () => {
-        onCommandExecute("exec_ips title ...",["exec_ips","title",".","","file"],socket,"","",monitor);
-        
-    });
+      
     socket.on("disconnect", () => {
       console.log(`[socket.io] 切断: ${socket.id}`);
       monitor.setStatus("Client disconnected", "#e0af68");
@@ -346,10 +363,11 @@ console.log(`Express + Socket.IO server started on http://localhost:${PORT}`);
 
 if (cliOptions.scriptPath) {
   const result = await runScript({
-    scriptPath: cliOptions.scriptPath,
-    url: SCRIPT_URL,
-    monitor,
-    parent_socket: undefined
+      scriptPath: cliOptions.scriptPath,
+      url: SCRIPT_URL,
+      monitor,
+      parent_socket: undefined,
+      on_events: g_messageOnEvt
   });
   logScriptResult(result, { writePanelC: (text, color) => monitor.writePanelC(text, color) });
   monitor.destroy();

@@ -143,6 +143,7 @@ namespace {
                 }
 
                 if (count-bcount > 50) {
+                    std::lock_guard<std::mutex> lock(state_mutex_);
                     bcount = count;
                     message << "[remote-cpp] tick " << count << " at " << iso_timestamp();
                     socket->emit(kRemoteOutputEvent, make_remote_output_payload(message.str()));
@@ -164,8 +165,36 @@ namespace {
                                     auto rvalues = sio::object_message::create();
                                     
                                     // std::cerr << "queried." << std::endl;
-                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("stage",m_stage);
-                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("fps","1");
+                                    if (args[0]->get_flag()==sio::message::flag_array) {
+                                        // std::cerr << "queried. by array_message" << std::endl;
+                                        for (auto arg_ptr : args[0]->get_vector()) {
+                                            auto arg_str = std::dynamic_pointer_cast<sio::string_message>(arg_ptr);
+                                            if (arg_str) {
+                                                std::string arg(arg_str->get_string());
+                                                if (arg=="stage") {
+                                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("stage",m_stage);
+                                                } else if (arg=="fps") {
+                                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("fps","1");
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        // std::cerr << "queried. by list" << std::endl;
+                                        auto msga(args.to_array_message());
+                                        for (auto arg_ptr : msga->get_vector()) {
+                                            // for (auto ia=0; ia< msga.size(); ia++) {
+                                            // arg_ptr = msga[ia];
+                                            auto arg_str = std::dynamic_pointer_cast<sio::string_message>(arg_ptr);
+                                            if (arg_str) {
+                                                std::string arg(arg_str->get_string());
+                                                if (arg=="stage") {
+                                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("stage",m_stage);
+                                                } else if (arg=="fps") {
+                                                    std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("fps","1");
+                                                }
+                                            }
+                                        }
+                                    }
                                     std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("camera_type"   ,"--");
                                     std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("frame_number"  ,"--");
                                     std::dynamic_pointer_cast<sio::object_message>(rvalues)->insert("firmware"      ,"--");
@@ -203,11 +232,11 @@ namespace {
                                     
                                     std::cout << "exec_ips0" << std::endl;
                                     m_stage="in_mipi_init";
-                                    event.put_ack_message(ok_msg);
                                     {
                                         std::lock_guard<std::mutex> lock(state_mutex_);
                                         m_receivedMessage = "Finishied Initializing MIPI";
                                     }
+                                    event.put_ack_message(ok_msg);
                                 }
                 );
             client.socket()->on("exec_ips"

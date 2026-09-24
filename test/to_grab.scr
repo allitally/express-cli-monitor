@@ -1,2 +1,14 @@
+#
+#    socket.on("send_ips_message", () => {
+#        onCommandExecute("exec_ips title ...",["exec_ips","title",".","",],socket,"","",monitor);
+#        
+#    });
+#
+#
+set_datarec_path /mnt/usb/MIPI_Framos_Image/1080V3_D 16 4096 1024
+Ack(to=220000): OK
 exec_ips0 title . "" examples/cpp-client/IPS/set_parameters.ips
-Ack(to=1000):
+Ack(to=1000): OK
+On.send_ips_message=='Finishied Initializing MIPI': exec_ips "title" . "" examples/cpp-client/IPS/start_grab.ips
+Ack(to=1000): OK
+

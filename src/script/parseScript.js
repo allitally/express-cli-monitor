@@ -54,103 +54,27 @@ export function parseScriptLine(line) {
 }
 
 /**
- * @typedef {{ event: string, args: string[], ackMode: 'ack' | 'pass' | null, expectedAck: string | null }} ScriptStep
- */
-
-/**
- * @param {string} content
- * @returns {ScriptStep[]}
- */
-export function parseScriptContent(content) {
-  const rawLines = content.split(/\r?\n/);
-
-  /** @type {ScriptStep[]} */
-  const steps = [];
-
-  // 対応形式:
-  //   Ack:
-  //   Ack(to=1000):
-  const ackPattern = /^Ack(?:\(to=(\d+)\))?:(.*)$/;
-
-  for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
-    const rawLine = rawLines[lineIndex];
-    const line = rawLine.trim();
-
-    if (line.length === 0 || line.startsWith("#")) {
-      continue;
-    }
-
-    // Ack系またはPass:が単独で現れた場合
-    if (line.startsWith("Ack") || line.startsWith("Pass:")) {
-      throw new Error(
-        `Line ${lineIndex + 1}: Ack:/Pass: must follow a socket message line`,
-      );
-    }
-
-    const { event, args } = parseScriptLine(line);
-
-    let ackMode = null;
-    let expectedAck = null;
-    let timeOut;
-
-    const nextIndex = lineIndex + 1;
-
-    if (nextIndex < rawLines.length) {
-      const nextLine = rawLines[nextIndex].trim();
-      const ackMatch = nextLine.match(ackPattern);
-
-      if (ackMatch) {
-        ackMode = "ack";
-
-        // (\d+)に一致したタイムアウト値
-        if (ackMatch[1] !== undefined) {
-          timeOut = Number(ackMatch[1]);
-
-          if (!Number.isSafeInteger(timeOut) || timeOut <= 0) {
-            throw new Error(
-              `Line ${nextIndex + 1}: ACK timeout must be a positive integer`,
-            );
-          }
-        }
-
-        // コロンより後ろがACKの期待値
-        expectedAck = ackMatch[2].trim();
-        lineIndex = nextIndex;
-      } else if (nextLine.startsWith("Ack")) {
-        // Ackのように見えるが書式が正しくない
-        throw new Error(
-          `Line ${nextIndex + 1}: invalid Ack syntax`,
-        );
-      } else if (nextLine.startsWith("Pass:")) {
-        ackMode = "pass";
-        lineIndex = nextIndex;
-      }
-    }
-
-    steps.push({
-      event,
-      args,
-      ackMode,
-      expectedAck,
-      ...(timeOut !== undefined && { timeOut }),
-    });
-  }
-
-  return steps;
-}
-/**
  * @typedef {Object} ScriptStep
- * @property {string} event 実行するスクリプトのイベント名
- * @property {unknown[]} args 実行するスクリプトの引数
+ * @property {string} event 送信するイベント名
+ * @property {unknown[]} args 送信する引数
  * @property {"ack" | "pass" | null} ackMode
  * @property {string | null} expectedAck
- * @property {number} [timeOut] ACKタイムアウト時間（ミリ秒）
+ * @property {number} [timeOut]
  *
- * @property {string} [onEvent]
- *   このイベントを受信したときに実行する
- *
+ * @property {string} [onEvent] 待ち受けるイベント名
  * @property {RegExp} [firstArgPattern]
- *   受信イベントの第1引数に適用する正規表現
+ *
+ * @property {Promise<unknown>} [completionPromise]
+ *   このstepのACK完了を待つPromise
+ *
+ * @property {(value: unknown) => void} [resolveCompletion]
+ *   ACK受信時に呼ぶ関数
+ *
+ * @property {(reason?: unknown) => void} [rejectCompletion]
+ *   タイムアウトなどの失敗時に呼ぶ関数
+ *
+ * @property {boolean} [running]
+ *   同じ条件が連続して成立したときの多重実行防止
  */
 
 /**
@@ -216,118 +140,158 @@ function parseOnLine(line, lineNumber) {
     ...(firstArgPattern !== undefined && { firstArgPattern }),
   };
 }
+/**
+ * on(メッセージイベント)による送信コマンドの
+ * Ackを待って次のスクリプト行を実行する仕組み
+ * 
+ * 外部からresolve/rejectできるPromiseを生成する。
+ *
+ * @template T
+ * @returns {{
+ *   promise: Promise<T>,
+ *   resolve: (value: T) => void,
+ *   reject: (reason?: unknown) => void
+ * }}
+ */
+export function createDeferred() {
+  let resolve;
+  let reject;
+
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+
+  return {
+    promise,
+    resolve,
+    reject,
+  };
+}
 
 /**
  * @param {string} content
  * @returns {ScriptStep[]}
  */
 export function parseScriptContent(content) {
-  const rawLines = content.split(/\r?\n/);
+    const rawLines = content.split(/\r?\n/);
 
-  /** @type {ScriptStep[]} */
-  const steps = [];
+    /** @type {ScriptStep[]} */
+    const steps = [];
 
-  // 対応形式:
-  //   Ack:
-  //   Ack(to=1000):
-  const ackPattern = /^Ack(?:\(to=(\d+)\))?:(.*)$/;
+    // 対応形式:
+    //   Ack:
+    //   Ack(to=1000):
+    const ackPattern = /^Ack(?:\(to=(\d+)\))?:(.*)$/;
 
-  for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
-    const line = rawLines[lineIndex].trim();
+    for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
+        const line = rawLines[lineIndex].trim();
 
-    if (line.length === 0 || line.startsWith("#")) {
-      continue;
-    }
-
-    /*
-     * Ack:/Ack(to=...):/Pass: は、必ず通常行またはOn行の
-     * 次の行でなければならない。
-     */
-    if (
-      line.startsWith("Ack") ||
-      line.startsWith("Pass:")
-    ) {
-      throw new Error(
-        `Line ${lineIndex + 1}: Ack:/Pass: must follow a script line`,
-      );
-    }
-
-    let scriptExpression = line;
-
-    /** @type {string | undefined} */
-    let onEvent;
-
-    /** @type {RegExp | undefined} */
-    let firstArgPattern;
-
-    /*
-     * On行なら、条件部分と実行スクリプト部分に分解する。
-     */
-    if (line.startsWith("On.")) {
-      const onInfo = parseOnLine(line, lineIndex + 1);
-
-      scriptExpression = onInfo.scriptExpression;
-      onEvent = onInfo.onEvent;
-      firstArgPattern = onInfo.firstArgPattern;
-    }
-
-
-      /*
-     * 通常行の場合はline全体、
-     * On行の場合は「:」の右側を解析する。
-     */
-    const { event, args } = parseScriptLine(scriptExpression);
-
-    /** @type {"ack" | "pass" | null} */
-    let ackMode = null;
-
-    /** @type {string | null} */
-    let expectedAck = null;
-
-    /** @type {number | undefined} */
-    let timeOut;
-
-    const nextIndex = lineIndex + 1;
-
-    if (nextIndex < rawLines.length) {
-      const nextLine = rawLines[nextIndex].trim();
-      const ackMatch = nextLine.match(ackPattern);
-
-      if (ackMatch) {
-        ackMode = "ack";
-
-        if (ackMatch[1] !== undefined) {
-          timeOut = Number(ackMatch[1]);
-
-          if (!Number.isSafeInteger(timeOut) || timeOut <= 0) {
-            throw new Error(
-              `Line ${nextIndex + 1}: ACK timeout must be a positive integer`,
-            );
-          }
+        if (line.length === 0 || line.startsWith("#")) {
+            continue;
         }
 
-        expectedAck = ackMatch[2].trim();
-        lineIndex = nextIndex;
-      } else if (nextLine.startsWith("Ack")) {
-        throw new Error(
-          `Line ${nextIndex + 1}: invalid Ack syntax`,
-        );
-      } else if (nextLine.startsWith("Pass:")) {
-        ackMode = "pass";
-        lineIndex = nextIndex;
+        /*
+         * Ack:/Ack(to=...):/Pass: は、必ず通常行またはOn行の
+         * 次の行でなければならない。
+         */
+        if (
+            line.startsWith("Ack") ||
+                line.startsWith("Pass:")
+        ) {
+            // いきなりAck/Passはエラー
+            throw new Error(
+                `Line ${lineIndex + 1}: Ack:/Pass: must follow a script line`,
+            );
+        }
+
+        let scriptExpression = line;
+
+        /** @type {string | undefined} */
+        let onEvent;
+
+        /** @type {RegExp | undefined} */
+        let firstArgPattern;
+
+        /*
+         * On行なら、条件部分と実行スクリプト部分に分解する。
+         */
+        if (line.startsWith("On.")) {
+            const onInfo = parseOnLine(line, lineIndex + 1);
+
+            scriptExpression = onInfo.scriptExpression;
+            onEvent = onInfo.onEvent;
+            firstArgPattern = onInfo.firstArgPattern;
+        }
+
+
+        /*
+         * 通常行の場合はline全体、
+         * On行の場合は「:」の右側を解析する。
+         */
+        const { event, args } = parseScriptLine(scriptExpression);
+
+        /** @type {"ack" | "pass" | null} */
+        let ackMode = null;
+
+        /** @type {string | null} */
+        let expectedAck = null;
+
+        /** @type {number | undefined} */
+        let timeOut;
+
+        const nextIndex = lineIndex + 1;
+
+      if (nextIndex < rawLines.length) {
+          const nextLine = rawLines[nextIndex].trim();
+          const ackMatch = nextLine.match(ackPattern);
+
+          if (ackMatch) {
+              ackMode = "ack";
+
+              if (ackMatch[1] !== undefined) {
+                  timeOut = Number(ackMatch[1]);
+
+                  if (!Number.isSafeInteger(timeOut) || timeOut <= 0) {
+                      throw new Error(
+                          `Line ${nextIndex + 1}: ACK timeout must be a positive integer`,
+                      );
+                  }
+              }
+
+              expectedAck = ackMatch[2].trim();
+              lineIndex = nextIndex;
+          } else if (nextLine.startsWith("Ack")) {
+              throw new Error(
+                  `Line ${nextIndex + 1}: invalid Ack syntax`,
+              );
+          } else if (nextLine.startsWith("Pass:")) {
+              ackMode = "pass";
+              lineIndex = nextIndex;
+          }
       }
+      /** @type {ScriptStep} **/
+      const step = {
+          event,
+          args,
+          ackMode,
+          expectedAck,
+          ...(timeOut !== undefined && { timeOut }),
+          ...(onEvent !== undefined && { onEvent }),
+          ...(firstArgPattern !== undefined && { firstArgPattern }),
+      };
+      if (step.onEvent !== undefined && step.ackMode === "ack") {
+          const deferred = createDeferred();
+
+          step.completionPromise = deferred.promise;
+          step.resolveCompletion = deferred.resolve;
+          step.rejectCompletion = deferred.reject;
+          step.pre_registered = false;
+          step.running = false;
+      }
+
+      steps.push(step);
     }
 
-    steps.push({
-      event,
-      args,
-      ackMode,
-      expectedAck,
-      ...(timeOut !== undefined && { timeOut }),
-      ...(onEvent !== undefined && { onEvent }),
-      ...(firstArgPattern !== undefined && { firstArgPattern }),
-    });
-  }
-
-  return steps;
+    return steps;
 }
