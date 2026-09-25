@@ -343,6 +343,14 @@ createSocketServer({
             );
             
         }, 5000); // 5秒間隔
+        const handler_ips_msg = async (...receivedArgs) => {
+            if (receivedArgs.length>0) {
+                monitor.appendPanelB(`MSG:${receivedArgs[0]}`,"#f0f0f0");
+            }
+            
+        };
+        g_messageOnEvt.set("send_ips_message", handler_ips_msg);
+        socket.on("send_ips_message",handler_ips_msg);
         socket.on("image_binary",ireceiver.onImage);
         socket.on("disconnect", () => {
             clearInterval(timerId);

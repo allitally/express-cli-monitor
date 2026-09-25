@@ -267,7 +267,9 @@ function registerOnStep(
             deferred.reject(error);
         }
     };
-
+    if (eventName in handlerMap) {
+        socket.off(eventName, handlerMap[eventName]);
+    }
     handlerMap.set(eventName, handler);
     socket.on(eventName, handler);
 
@@ -286,7 +288,7 @@ export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ack
           // monitor.writePanelC(`retrun: ${stepNo}:${JSON.stringify(step.args)}`, "#bb9af7");
 
       } catch (err) {
-        payload = encodePayload(step.event, step.args, monitor);
+        // payload = encodePayload(step.event, step.args, monitor);
           monitor.writePanelC(`catch: ${stepNo}:${JSON.stringify(step.args)}`, "#bb9af7");
         return fail(scriptPath, {
             reason : "encoder_error",
