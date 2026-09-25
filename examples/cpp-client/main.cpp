@@ -225,7 +225,8 @@ namespace {
                              
                     
                     }
-                    event.put_ack_message(ackst);
+                    ack.push(ackst);
+                    event.put_ack_message(ack);
                 });
             client.socket()->on("exec_ips0"
                                 , [this](sio::event & event) {
