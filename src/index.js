@@ -279,21 +279,7 @@ createSocketServer({
         });
         const timerId = setInterval(() => {
 
-            // try {
-
-            // } catch (e) {
-            //   let responseStr = JSON.stringify(response, null, 2);
-            //   console.log(
-            //     `response の値:`,
-            //     responseStr
-            //   );
-            // }
-
-            /*                 console.log(
-                               `クライアント ${socket.id} の状態:`,
-                               JSON.stringify(response, null, 2)
-                               );
-            */       // 前回の確認がまだ終わっている場合は重複送信しない
+            // 前回の確認がまだ終わっている場合は重複送信しない
             if (checking.qp || checking.qpf || checking.qr) {
                 return;
             }
@@ -302,7 +288,8 @@ createSocketServer({
             checking.qp = true;
             checking.qpf = true;
             checking.qr = true;
-            monitor.clearStatus
+            
+            monitor.clearStatus();
             socket.timeout(3000).emit(
                 "query_recorder", "state",
                 {
@@ -310,10 +297,14 @@ createSocketServer({
                 },
                 (err, response) => {
                     checking.qr = false;
+                    if (!socket.connected) {
+                        monitor.writePanelC(`Disconnected`, "#f7768e");
+                        return;
+                    }
 
                     if (err) {
                         const erlog = 
-                              `クライアント ${socket.id} から応答がありません`;
+                              `(rec)クライアント ${socket.id} から応答がありません`;
                         monitor.writePanelC(erlog, "#f7768e");
                         return;
                     } else {
@@ -337,10 +328,12 @@ createSocketServer({
                 (err, response) => {
                     checking.qp = false;
                     checking.qpf=false;
-                    
+                    if (!socket.connected) {
+                        return;
+                    }
                     if (err) {
                         const erlog = 
-                              `クライアント ${socket.id} から応答がありません`;
+                              `(process)クライアント ${socket.id} から応答がありません`;
                         monitor.writePanelC(erlog, "#f7768e");
                         return;
                     } else {
@@ -352,6 +345,7 @@ createSocketServer({
         }, 5000); // 5秒間隔
         socket.on("image_binary",ireceiver.onImage);
         socket.on("disconnect", () => {
+            clearInterval(timerId);
             console.log(`[socket.io] 切断: ${socket.id}`);
             monitor.setStatus("Client disconnected", "#e0af68");
             monitor.writePanelC(`切断: ${socket.id}`, "#f7768e");
