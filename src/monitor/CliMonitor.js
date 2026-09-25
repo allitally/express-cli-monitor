@@ -197,17 +197,17 @@ export class CliMonitor {
     this.statusText.content = "";
   }
   /**
-   * 3-1 ステータス行へ色付き文字列を表示
+   * 3-1 ステータス(Stage)行へ色付き文字列を表示
    * @param {string} text
    * @param {string} [color='#00FF00']
    */
   addStageStatus(text, color = "#00FF00") {
-    if (!this.statusText) return;
+    if (!this.stageText) return;
 
     this.stageText.content =t`${fg(color)(text)}`;
   }
   /**
-   * 3-1 ステータス行へ色付き文字列を表示
+   * 3-1 ステータス(Record Status)行へ色付き文字列を表示
    * @param {string} text
    * @param {string} [color='#00FF00']
    */
@@ -219,6 +219,15 @@ export class CliMonitor {
         this.baseStatus = text
         this.addStatus(text,color);
     }
+  /**
+   * 3-1 ステータス(Frame Status)行へ色付き文字列を表示
+   * @param {string} text
+   * @param {string} [color='#00FF00']
+   */
+  setFrameStatus(text, color = "#FFFF00") {
+      if (!this.frameText) return;
+      this.frameText.content =t`${fg(color)(text)}`;;
+  }
   /**
    * 3-4 パネルCへ色付き文字列を出力
    * @param {string} text
@@ -289,7 +298,20 @@ export class CliMonitor {
       backgroundColor: "#24283b",
       paddingLeft: 1,
     });
+    const frameBar = new BoxRenderable(this.renderer, {
+      id: "frame-bar",
+      width: "100%",
+      height: 1,
+      backgroundColor: "#24283b",
+      paddingLeft: 1,
+    });
 
+    this.frameText = new TextRenderable(this.renderer, {
+      id: "frame-text",
+      width: "100%",
+      content: t`${fg("#d0ce00")("-")}`,
+    });
+    frameBar.add(this.frameText);
     this.statusText = new TextRenderable(this.renderer, {
       id: "status-text",
       width: "100%",
@@ -368,6 +390,7 @@ export class CliMonitor {
       }
     };
 
+    container.add(frameBar);
     container.add(statusBar);
     container.add(stageRow);
     container.add(mainRow);

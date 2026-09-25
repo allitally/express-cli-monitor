@@ -10,7 +10,7 @@ const {iconv} = iconv_pkg;
 // // Shift-JIS → JavaScript文字列(Unicode)へ変換
 // const text = iconv.decode(buffer, "Shift_JIS");
 
-
+import { ImageReceiver } from "./image/ImageReceiver.ts";
 import { parseCliArgs, printUsage } from "./cli/parseArgs.js";
 import { CliMonitor } from "./monitor/CliMonitor.js";
 import { onCommandExecute } from "./handlers/commandHandler.js";
@@ -20,6 +20,7 @@ import { createSocketServer } from "./server.js";
 import { logScriptResult, runScript } from "./script/runScript.js";
 import {registerPayloadEncoder} from "./script/payloadEncoders.js";
 
+const ireceiver = new ImageReceiver();
 const PORT = Number(process.env.PORT ?? 3000);
 const SCRIPT_URL = process.env.MONITOR_URL ?? `http://localhost:${PORT}`;
 
@@ -227,134 +228,135 @@ const monitor = new CliMonitor({
 var g_messageOnEvt = new Map();
 
 createSocketServer({
-  port: PORT,
-  onConnection: (socket) => {
-    console.log(`[socket.io] 接続: ${socket.id}`);
-    monitor.setStatus(`Client connected: ${socket.id}`, "#7aa2f7");
-    monitor.writePanelC(`接続: ${socket.id}`, "#73daca");
+    port: PORT,
+    onConnection: (socket) => {
+        console.log(`[socket.io] 接続: ${socket.id}`);
+        monitor.setStatus(`Client connected: ${socket.id}`, "#7aa2f7");
+        monitor.writePanelC(`接続: ${socket.id}`, "#73daca");
 
-    registerSocketEventHandlers(socket, {
-      appendPanelB: (line) => monitor.appendPanelB(line),
-    });
-    let checking = { qp: false, qpf: false, qr: false };
-    let stagev = "unknown";
-    let state_rec="unknown";
-    let fps_state="unknown";
-
-    monitor.setConsoleCommands(socket,async (commandText, args) => {
-//      await onCommandExecute(commandText, args);
-
-      const cmd = args[0];
-      if (cmd === "status") {
-        monitor.setStatus(`接続ポート: ${PORT}`, "#7dcfff");
-      } else if (cmd === "clear") {
-        monitor.clearAllPanels();
-        monitor.setStatus("ログをクリアしました", "#9ece6a");
-      } else if (cmd === "help") {
-        monitor.writePanelC("help | status | clear | load | quit", "#bb9af7");
-      } else if (cmd === "list_encoder") {
-      } else if (cmd === "send") {
-          await onCommandExecute(commandText,args.slice(1),socket,"","",monitor
-                                 , g_messageOnEvt);
- 
-      } else if (cmd === "load") {
-        if (args.length < 2) {
-          monitor.writePanelC("usage: load <script-file>", "#f7768e");
-          return;
-        }
-        const result = await runScript({
-            scriptPath: args[1],
-            url: SCRIPT_URL,
-            monitor: monitor,
-            parent_socket: socket,
-            on_events: g_messageOnEvt
+        registerSocketEventHandlers(socket, {
+            appendPanelB: (line) => monitor.appendPanelB(line),
         });
-        logScriptResult(result, { writePanelC: (text, color) => monitor.writePanelC(text, color) });
-      } else if (cmd === "quit" || cmd === "exit") {
-        monitor.setStatus("終了中...", "#f7768e");
-        monitor.destroy();
-        process.exit(0);
-      }
-    });
-    const timerId = setInterval(() => {
+        let checking = { qp: false, qpf: false, qr: false };
+        let stagev = "unknown";
+        let state_rec="unknown";
+        let fps_state="unknown";
 
-        // try {
+        monitor.setConsoleCommands(socket,async (commandText, args) => {
+            //      await onCommandExecute(commandText, args);
 
-        // } catch (e) {
-        //   let responseStr = JSON.stringify(response, null, 2);
-        //   console.log(
-        //     `response の値:`,
-        //     responseStr
-        //   );
-        // }
-
-/*                 console.log(
-            `クライアント ${socket.id} の状態:`,
-            JSON.stringify(response, null, 2)
-        );
-*/       // 前回の確認がまだ終わっている場合は重複送信しない
-        if (checking.qp || checking.qpf || checking.qr) {
-            return;
-        }
-
-        checking.qp = true;
-        checking.qpf = true;
-        checking.qr = true;
-        monitor.clearStatus
-        socket.timeout(3000).emit(
-            "query_recorder", "state",
-            {
-                serverTime: Date.now()
-            },
-            (err, response) => {
-                checking.qr = false;
-
-                if (err) {
-                    const erlog = 
-                        `クライアント ${socket.id} から応答がありません`;
-                    monitor.writePanelC(erlog, "#f7768e");
-                    return;
-                  } else {
-                    monitor.addStatus(`Recorder: ${response["state"]}` , "#7aa2f7");
-                  }
-            }
-        );
-        socket.timeout(3000).emit(
-            "query_process",["stage","fps"
-                             ,"camera_type"   
-                             ,"frame_number"  
-                             ,"firmware"      
-                             ,"rt_error"      
-                             ,"compile_id"    
-                             ,"exec_result"   
-                             ,"compile_result"
-                            ],
-            {
-                serverTime: Date.now()
-            },
-            (err, response) => {
-                checking.qp = false;
-                checking.qpf=false;
+            const cmd = args[0];
+            if (cmd === "status") {
+                monitor.setStatus(`接続ポート: ${PORT}`, "#7dcfff");
+            } else if (cmd === "clear") {
+                monitor.clearAllPanels();
+                monitor.setStatus("ログをクリアしました", "#9ece6a");
+            } else if (cmd === "help") {
+                monitor.writePanelC("help | status | clear | load | quit", "#bb9af7");
+            } else if (cmd === "list_encoder") {
+            } else if (cmd === "send") {
+                await onCommandExecute(commandText,args.slice(1),socket,"","",monitor
+                                       , g_messageOnEvt);
                 
-                if (err) {
-                  const erlog = 
-                        `クライアント ${socket.id} から応答がありません`;
-                    monitor.writePanelC(erlog, "#f7768e");
+            } else if (cmd === "load") {
+                if (args.length < 2) {
+                    monitor.writePanelC("usage: load <script-file>", "#f7768e");
                     return;
-                 } else {
-                     generate_query_process_result(response);                     
-                 }
+                }
+                const result = await runScript({
+                    scriptPath: args[1],
+                    url: SCRIPT_URL,
+                    monitor: monitor,
+                    parent_socket: socket,
+                    on_events: g_messageOnEvt
+                });
+                logScriptResult(result, { writePanelC: (text, color) => monitor.writePanelC(text, color) });
+            } else if (cmd === "quit" || cmd === "exit") {
+                monitor.setStatus("終了中...", "#f7768e");
+                monitor.destroy();
+                process.exit(0);
             }
-        );
-        
-    }, 5000); // 5秒間隔
-      
-    socket.on("disconnect", () => {
-      console.log(`[socket.io] 切断: ${socket.id}`);
-      monitor.setStatus("Client disconnected", "#e0af68");
-      monitor.writePanelC(`切断: ${socket.id}`, "#f7768e");
-    });
-  },
+        });
+        const timerId = setInterval(() => {
+
+            // try {
+
+            // } catch (e) {
+            //   let responseStr = JSON.stringify(response, null, 2);
+            //   console.log(
+            //     `response の値:`,
+            //     responseStr
+            //   );
+            // }
+
+            /*                 console.log(
+                               `クライアント ${socket.id} の状態:`,
+                               JSON.stringify(response, null, 2)
+                               );
+            */       // 前回の確認がまだ終わっている場合は重複送信しない
+            if (checking.qp || checking.qpf || checking.qr) {
+                return;
+            }
+            monitor.setFrameStatus(`Frame(${ireceiver.getFps()} FPS): Total=${ireceiver.getReceiveCount()},Session=${ireceiver.getLastSessionId()},FN=${ireceiver.getLastFrameNumber()}`);
+
+            checking.qp = true;
+            checking.qpf = true;
+            checking.qr = true;
+            monitor.clearStatus
+            socket.timeout(3000).emit(
+                "query_recorder", "state",
+                {
+                    serverTime: Date.now()
+                },
+                (err, response) => {
+                    checking.qr = false;
+
+                    if (err) {
+                        const erlog = 
+                              `クライアント ${socket.id} から応答がありません`;
+                        monitor.writePanelC(erlog, "#f7768e");
+                        return;
+                    } else {
+                        monitor.addStatus(`Recorder: ${response["state"]}` , "#7aa2f7");
+                    }
+                }
+            );
+            socket.timeout(3000).emit(
+                "query_process",["stage","fps"
+                                 ,"camera_type"   
+                                 ,"frame_number"  
+                                 ,"firmware"      
+                                 ,"rt_error"      
+                                 ,"compile_id"    
+                                 ,"exec_result"   
+                                 ,"compile_result"
+                                ],
+                {
+                    serverTime: Date.now()
+                },
+                (err, response) => {
+                    checking.qp = false;
+                    checking.qpf=false;
+                    
+                    if (err) {
+                        const erlog = 
+                              `クライアント ${socket.id} から応答がありません`;
+                        monitor.writePanelC(erlog, "#f7768e");
+                        return;
+                    } else {
+                        generate_query_process_result(response);                     
+                    }
+                }
+            );
+            
+        }, 5000); // 5秒間隔
+        socket.on("image_binary",ireceiver.onImage);
+        socket.on("disconnect", () => {
+            console.log(`[socket.io] 切断: ${socket.id}`);
+            monitor.setStatus("Client disconnected", "#e0af68");
+            monitor.writePanelC(`切断: ${socket.id}`, "#f7768e");
+        });
+    },
 });
 
 await monitor.start();
