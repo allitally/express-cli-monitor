@@ -1,8 +1,9 @@
 // const fs = require("fs");
 import { open } from 'node:fs/promises';
 // import { fsPromises };
-import iconv_pkg from 'iconv-lite';
-const {iconv} = iconv_pkg;
+import iconv from 'iconv-lite';
+
+import { createInterface } from 'node:readline';
 
 // // Shift-JISファイルをBufferとして読み込む
 // const buffer = fs.readFileSync("sample.txt");
@@ -26,28 +27,28 @@ const SCRIPT_URL = process.env.MONITOR_URL ?? `http://localhost:${PORT}`;
 
 let cliOptions;
 try {
-  cliOptions = parseCliArgs(process.argv);
+    cliOptions = parseCliArgs(process.argv);
 } catch (err) {
-  console.error(err instanceof Error ? err.message : err);
-  printUsage();
-  process.exit(1);
+    console.error(err instanceof Error ? err.message : err);
+    printUsage();
+    process.exit(1);
 }
 
 if (cliOptions.help) {
-  printUsage();
-  process.exit(0);
+    printUsage();
+    process.exit(0);
 }
 function generate_query_process_result(response)
 {
     const keys = ["stage"         
-    ,   "fps"           
-    ,   "camera_type"   
-    ,   "frame_number"  
-    ,   "firmware"      
-    ,   "rt_error"      
-    ,   "compile_id"    
-    ,   "exec_result"   
-    ,   "compile_result"];
+                  ,   "fps"           
+                  ,   "camera_type"   
+                  ,   "frame_number"  
+                  ,   "firmware"      
+                  ,   "rt_error"      
+                  ,   "compile_id"    
+                  ,   "exec_result"   
+                  ,   "compile_result"];
 
     let combined = ""
     let break_by_no_key = false;
@@ -96,28 +97,39 @@ function generate_query_process_result(response)
 async function read_to_lines(path)
 {
     const fd = await open(path);
-    const strm = fd.createReadStream({encoding:'cp932'});
-    lines = strm.readLines()
-
-    return lines;
+    try {
+        const input = fd.createReadStream().pipe(iconv.decodeStream('cp932'));
+        // lines = strm.readLines();
+        const rl = createInterface({
+            input,
+            crlfDelay: Infinity
+        });
+        const lines = [];
+        for await (const l1 of rl) {
+            lines.push(l1);
+        }
+        return lines;
+    } finally {
+        await fd.close();
+    }
 }
 ///////////////////////////////////////
 registerPayloadEncoder("exec_ips0", async (args) => {
-    if (args.length < 4) {
-      throw new Error("exec_ips0 encoder requires at least 4 arguments");
+    if (args.length < 3) {
+      throw new Error("exec_ips0 encoder requires at least 3 arguments");
     }
-    let enc_arg=[args[1],args[2],args[3]];
-    if (args.length > 4) {
+    let enc_arg=[args[0],args[1],args[2]];
+    if (args.length > 3) {
         let lineres = [];
-        lineres = await read_to_lines(args[4]);
+        lineres = await read_to_lines(args[3]);
         // try {
         //     lineres = read_to_lines(args[4]);
         // } catch (err) {
         //     console.error(err instanceof Error ? err.message : err);
         // }
         enc_arg.push(lineres);
-        if (args.length > 5) {
-            enc_arg.push(args[5]);
+        if (args.length > 4) {
+            enc_arg.push(args[4]);
         }
     }
     return enc_arg;
@@ -125,21 +137,21 @@ registerPayloadEncoder("exec_ips0", async (args) => {
 );
 ///////////////////////////////////////
 registerPayloadEncoder("exec_ips", async (args) => {
-    if (args.length < 4) {
-      throw new Error("exec_ips encoder requires at least 4 arguments");
+    if (args.length < 3) {
+      throw new Error("exec_ips encoder requires at least 3 arguments");
     }
     let enc_arg=[];
     // title
-    enc_arg.push(args[1]);
+    enc_arg.push(args[0]);
     // root
-    enc_arg.push(args[2]);
+    enc_arg.push(args[1]);
     // 1 line    
-    enc_arg.push(args[3]);
+    enc_arg.push(args[2]);
     
-    if (args.length > 4) {
+    if (args.length > 3) {
         try {
             // load & multi lines
-            let lines = await read_to_lines(args[4]);
+            let lines = await read_to_lines(args[3]);
             enc_arg.push(lines);
         } catch (err) {
             throw new Error(`${args[0]}:${JSON.stringify(err)}`);
@@ -150,58 +162,55 @@ registerPayloadEncoder("exec_ips", async (args) => {
 );
 ///////////////////////////////////////
 registerPayloadEncoder("query_recorder", (args) => {
-    if (args.length < 2) {
-      throw new Error("query_recorder encoder requires at least 2 arguments");
+    if (args.length < 1) {
+      throw new Error("query_recorder encoder requires at least 1 arguments");
     }
-    return args.slice(1);
+    return args;
   } 
 );
 ///////////////////////////////////////
 registerPayloadEncoder("record_pick", (args) => {
-    if (args.length < 4) {
-      throw new Error("record_pick encoder requires at least 4 arguments");
+    if (args.length < 3) {
+      throw new Error("record_pick encoder requires at least 3 arguments");
     }
-    return args.slice(1);
+    return args;
   } 
 );
 ///////////////////////////////////////
 registerPayloadEncoder("record_reserve", (args) => {
-    if (args.length < 4) {
-      throw new Error("record_reserve encoder requires at least 4 arguments");
+    if (args.length < 3) {
+      throw new Error("record_reserve encoder requires at least 3 arguments");
     }
-    return args.slice(1);
+    return args;
   } 
 );
 ///////////////////////////////////////
 registerPayloadEncoder("record_range", (args) => {
-    if (args.length < 4) {
-      throw new Error("record_range encoder requires at least 4 arguments");
+    if (args.length < 3) {
+      throw new Error("record_range encoder requires at least 3 arguments");
     }
-    return args.slice(1);
+    return args;
   } 
 );
 ///////////////////////////////////////
 registerPayloadEncoder("history_pick", (args) => {
-    if (args.length < 3) {
-      throw new Error("history_pick encoder requires at least 3 arguments");
+    if (args.length < 2) {
+      throw new Error("history_pick encoder requires at least 2 arguments");
     }
-    return args.slice(1);
+    return args;
   } 
 );
 ///////////////////////////////////////
 registerPayloadEncoder("exit", (args) => {
-    if (args.length < 1) {
-      throw new Error("exit encoder requires at least 1 argument");
-    }
-    return args.slice(1);
+    return args;
   } 
 );
 ///////////////////////////////////////
 registerPayloadEncoder("REPL_cmd", (args) => {
-    if (args.length < 2) {
-      throw new Error("REPL_cmd encoder requires at least 2 arguments");
+    if (args.length < 1) {
+      throw new Error("REPL_cmd encoder requires at least 1 arguments");
     }
-    return args.slice(1);
+    return args;
   } 
 );
 ///////////////////////////////////////
@@ -209,7 +218,7 @@ registerPayloadEncoder("set_datarec_path", (args) => {
     if (args.length < 4) {
       throw new Error("set_datarec_path encoder requires at least 4 arguments");
     }
-    return args.slice(1);
+    return args;
   } 
 );
 const monitor = new CliMonitor({

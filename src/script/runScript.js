@@ -45,10 +45,10 @@ export function ackToString(value) {
 function emitWithAck(socket, event, payload, timeoutMs) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error(`ACK timeout for event "${event}"`));
+        reject(new Error(`ACK timeout(${timeoutMs/1000} sec) for event "${event}"`));
     }, timeoutMs);
 
-    socket.emit(event, payload, (response) => {
+    socket.emit(event, ...payload, (response) => {
       clearTimeout(timer);
       resolve(response);
     });
@@ -230,6 +230,7 @@ function registerOnStep(
                 /*
                  * ackモードでは、送信先からACKが返るまで待つ。
                  */
+
                 receivedAck = await emitWithAck(
                     socket,
                     step.event,
@@ -284,7 +285,7 @@ export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ack
     monitor.writePanelC(`Script: ${stepNo}:${step.args[0]}`, "#bb9af7");
       let payload;
       try {
-        payload = encodePayload(step.event, step.args, monitor);
+        payload = await encodePayload(step.event, step.args, monitor);
           // monitor.writePanelC(`retrun: ${stepNo}:${JSON.stringify(step.args)}`, "#bb9af7");
 
       } catch (err) {
@@ -299,12 +300,12 @@ export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ack
       }
 
       monitor.writePanelC?.(
-        `[No.${stepNo}] emit ${step.event} ${JSON.stringify(payload)}`,
+          `[No.${stepNo}] emit ${step.event} isArray=${Array.isArray(payload)}:${JSON.stringify(payload)}`,
         "#7aa2f7",
       );
 
       if (step.ackMode === "pass") {
-        socket.emit(step.event, payload);
+        socket.emit(step.event, ...payload);
         monitor.writePanelC?.(`[${stepNo}] PASS (skip ack)`, "#9ece6a");
         return {ok:true};
       }
