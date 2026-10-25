@@ -223,7 +223,9 @@ function registerOnStep(
 
         try {
             
-            const payload = encodePayload(step.event, step.args, monitor);
+            const payload = await encodePayload(step.event
+                                                , step.args
+                                                , monitor);
             let receivedAck;
 
             if (step.ackMode === "ack") {

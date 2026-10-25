@@ -256,6 +256,7 @@ createSocketServer({
         registerSocketEventHandlers(socket, {
             appendPanelB: (line) => monitor.appendPanelB(line),
     });
+        
         let checking = { qp: false, qpf: false, qr: false };
         let stagev = "unknown";
         let state_rec="unknown";
@@ -288,38 +289,6 @@ createSocketServer({
                     scriptPath: args[1],
                     url: SCRIPT_URL,
                     monitor,
-                    parent_socket: socket
-        });
-        let checking = { qp: false, qpf: false, qr: false };
-        let stagev = "unknown";
-        let state_rec="unknown";
-        let fps_state="unknown";
-
-        monitor.setConsoleCommands(socket,async (commandText, args) => {
-            //      await onCommandExecute(commandText, args);
-
-            const cmd = args[0];
-            if (cmd === "status") {
-                monitor.setStatus(`接続ポート: ${PORT}`, "#7dcfff");
-            } else if (cmd === "clear") {
-                monitor.clearAllPanels();
-                monitor.setStatus("ログをクリアしました", "#9ece6a");
-            } else if (cmd === "help") {
-                monitor.writePanelC("help | status | clear | load | quit", "#bb9af7");
-            } else if (cmd === "list_encoder") {
-            } else if (cmd === "send") {
-                await onCommandExecute(commandText,args.slice(1),socket,"","",monitor
-                                       , g_messageOnEvt);
-                
-            } else if (cmd === "load") {
-                if (args.length < 2) {
-                    monitor.writePanelC("usage: load <script-file>", "#f7768e");
-                    return;
-                }
-                const result = await runScript({
-                    scriptPath: args[1],
-                    url: SCRIPT_URL,
-                    monitor: monitor,
                     parent_socket: socket,
                     on_events: g_messageOnEvt
                 });
@@ -330,6 +299,8 @@ createSocketServer({
                 process.exit(0);
             }
         });
+
+
         const timerId = setInterval(() => {
 
             // 前回の確認がまだ終わっている場合は重複送信しない
@@ -411,7 +382,7 @@ createSocketServer({
             monitor.setStatus("Client disconnected", "#e0af68");
             monitor.writePanelC(`切断: ${socket.id}`, "#f7768e");
         });
-    },
+    }
 });
 
 await monitor.start();
