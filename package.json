@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node --experimental-ffi src/index.js",
     "start:script": "node --experimental-ffi src/index.js -- --script examples/scripts/sample.script",
-    "client": "node examples/socket-client.js"
+    "client": "node examples/socket-client.js",
+    "test": "node --test src/monitor/dump.test.js"
   },
   "keywords": [
     "express",
