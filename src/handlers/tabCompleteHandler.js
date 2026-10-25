@@ -12,11 +12,22 @@ import { resolve } from "node:path";
  */
 export function onTabComplete(args) {
   if (args.length === 0) {
-    return ["help", "status", "clear", "load", "quit"];
+    return ["help", "status", "clear", "load", "quit", "dump", "bind"];
   }
 
   const [cmd, ...rest] = args;
   const partial = rest.at(-1) ?? "";
+
+  if (cmd === "dump" || cmd === "bind") {
+    if (rest.length <= 1) {
+      const targets = ["a", "b", "c", "all"];
+      const matches = targets.filter((target) => target.startsWith(partial));
+      if (matches.length === 0) return null;
+      if (matches.length === 1) return matches[0];
+      return matches;
+    }
+    if (cmd === "bind") return null;
+  }
 
   // load コマンドのスクリプトファイル補完
   if (cmd === "load" && rest.length > 0) {
@@ -53,8 +64,10 @@ export function onTabComplete(args) {
   }
 
   
+  if (cmd === "dump" || cmd === "bind") return null;
+
   // コマンド名補完の例
-  const commands = ["help", "status", "clear", "load", "quit"];
+  const commands = ["help", "status", "clear", "load", "quit", "dump", "bind"];
   const matches = commands.filter((c) => c.startsWith(cmd));
   if (matches.length === 0) return null;
   if (matches.length === 1) return matches[0];

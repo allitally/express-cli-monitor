@@ -11,7 +11,7 @@ const {iconv} = iconv_pkg;
 // const text = iconv.decode(buffer, "Shift_JIS");
 
 
-import { parseCliArgs, printUsage } from "./cli/parseArgs.js";
+import { parseCliArgs, printUsage, resolveDumpOptions } from "./cli/parseArgs.js";
 import { CliMonitor } from "./monitor/CliMonitor.js";
 import { onCommandExecute } from "./handlers/commandHandler.js";
 import { onTabComplete } from "./handlers/tabCompleteHandler.js";
@@ -210,10 +210,20 @@ registerPayloadEncoder("set_datarec_path", (args) => {
     return args.slice(1);
   } 
 );
-const monitor = new CliMonitor({
-  onCommandExecute: undefined,
-  onTabComplete,
-});
+const dumpOptions = resolveDumpOptions(cliOptions);
+let monitor;
+try {
+  monitor = new CliMonitor({
+    onCommandExecute: undefined,
+    onTabComplete,
+    dumpKeys: dumpOptions.dumpKeys,
+    dumpDir: dumpOptions.dumpDir,
+    dumpToClipboard: dumpOptions.dumpToClipboard,
+  });
+} catch (err) {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+}
 
 createSocketServer({
   port: PORT,
@@ -240,7 +250,10 @@ createSocketServer({
         monitor.clearAllPanels();
         monitor.setStatus("ログをクリアしました", "#9ece6a");
       } else if (cmd === "help") {
-        monitor.writePanelC("help | status | clear | load | quit", "#bb9af7");
+        monitor.writePanelC("help | status | clear | load | quit | dump | bind", "#bb9af7");
+        monitor.writePanelC("dump <a|b|c|all> [file]", "#bb9af7");
+        monitor.writePanelC("bind <a|b|c|all> <key>|none", "#bb9af7");
+        monitor.writePanelC(monitor.describeDumpKeys(), "#7aa2f7");
       } else if (cmd === "list_encoder") {
       } else if (cmd === "send") {
         await onCommandExecute(commandText,args.slice(1),socket,"","",monitor);

@@ -111,6 +111,30 @@ examples/cpp-client/build/monitor_cpp_client.exe
 └───────────────────────────────────────────────────────┘
 ```
 
+ペイン内のマウス選択はターミナルのコピーに載りません。各ペインのバッファ全文をダンプします。既定では `dumps/` に UTF-8 で書き、同時にクリップボードへコピーします。ペインタイトルに現在のキーが出ます。
+
+| キー | 動作 |
+|------|------|
+| F6 | ペイン A をダンプ |
+| F7 | ペイン B をダンプ |
+| F8 | ペイン C をダンプ |
+| F9 | A/B/C をまとめてダンプ |
+
+```
+dump a
+dump b logs/socket.txt
+dump all
+bind
+bind a alt+a
+bind all none
+```
+
+キー指定は `f6`、`ctrl+f2`、`alt+a`、`shift+f6`、`ctrl+shift+a` です。`ctrl+c` と、修飾なしの文字キーは割り当てできません。
+
+```bash
+npm start -- --dump-key-a alt+a --dump-dir logs/dumps
+```
+
 ## 提供 API
 
 | API | 説明 |
@@ -119,6 +143,9 @@ examples/cpp-client/build/monitor_cpp_client.exe
 | `onCommandExecute(text, args)` | Enter 確定時のコマンド実行ハンドラ |
 | `onTabComplete(args)` | Tab 押下時の補完ハンドラ（引数配列を受け取る） |
 | ↑ / ↓ | コマンド履歴（組み込み） |
+| F6 / F7 / F8 / F9 | ペイン A / B / C / 全部をダンプ（キーは `bind` で変更） |
+| `dump <pane> [file]` | 指定ペインをファイルとクリップボードへダンプ |
+| `bind <pane> <key>` | ダンプのショートカットを変更。`none` で解除 |
 | パネル A | `console.log()` を横取りして表示 |
 | パネル B | Socket.IO `remote-output` イベントの出力 |
 | `monitor.writePanelC(text, color)` | パネル C へ色付き文字列出力 |
@@ -135,3 +162,8 @@ examples/cpp-client/build/monitor_cpp_client.exe
 |------|--------|------|
 | `PORT` | `3000` | Express / Socket.IO のポート |
 | `MONITOR_URL` | `http://localhost:3000` | クライアントサンプルの接続先 |
+| `DUMP_KEY_A` | `f6` | ペイン A のダンプキー |
+| `DUMP_KEY_B` | `f7` | ペイン B のダンプキー |
+| `DUMP_KEY_C` | `f8` | ペイン C のダンプキー |
+| `DUMP_KEY_ALL` | `f9` | 全ペインのダンプキー |
+| `DUMP_DIR` | `dumps` | ダンプ先ディレクトリ。空文字ならファイル出力なし |

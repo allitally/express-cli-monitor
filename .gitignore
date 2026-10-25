@@ -62,3 +62,6 @@ typings/
 
 # C++ example build output
 examples/cpp-client/build/
+
+# Pane dump files
+dumps/
