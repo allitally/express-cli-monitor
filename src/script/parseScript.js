@@ -6,45 +6,162 @@
  * @param {string} line
  * @returns {{ event: string, args: string[] }}
  */
+/**
+ * スクリプト1行を解析する。
+ *
+ * 書式:
+ *   <event> [<arg1> [<arg2> ...]]
+ *
+ * ダブルクォート内では次のエスケープを解釈する。
+ *
+ *   \"  → "
+ *   \\  → \
+ *   \n  → 改行
+ *   \r  → CR
+ *   \t  → タブ
+ *
+ * それ以外のエスケープはバックスラッシュを維持する。
+ * 例:
+ *   \x01 → \x01
+ *
+ * @param {string} line
+ * @returns {{ event: string, args: string[] }}
+ */
 export function parseScriptLine(line) {
+  /** @type {string[]} */
   const tokens = [];
+
   let i = 0;
 
-  while (i < line.length && /\s/.test(line[i])) {
-    i++;
-  }
+  const skipSpaces = () => {
+    while (
+      i < line.length &&
+      /\s/.test(line[i])
+    ) {
+      i++;
+    }
+  };
+
+  skipSpaces();
 
   while (i < line.length) {
+    let token = "";
+
     if (line[i] === '"') {
+      // 開始ダブルクォートを読み飛ばす
       i++;
-      let token = "";
-      while (i < line.length && line[i] !== '"') {
-        token += line[i];
+
+      let closed = false;
+
+      while (i < line.length) {
+        const ch = line[i];
+
+        if (ch === '"') {
+          // エスケープされていないダブルクォートで終了
+          i++;
+          closed = true;
+          break;
+        }
+
+        if (ch === "\\") {
+          if (i + 1 >= line.length) {
+            throw new Error(
+              `Trailing backslash in quoted argument: ${line}`,
+            );
+          }
+
+          const escaped = line[i + 1];
+
+          switch (escaped) {
+            case '"':
+              token += '"';
+              break;
+
+            case "\\":
+              token += "\\";
+              break;
+
+            case "n":
+              token += "\n";
+              break;
+
+            case "r":
+              token += "\r";
+              break;
+
+            case "t":
+              token += "\t";
+              break;
+
+            default:
+              /*
+               * \x01など、このパーサー自身が解釈しない
+               * エスケープはバックスラッシュごと保持する。
+               */
+              token += `\\${escaped}`;
+              break;
+          }
+
+          i += 2;
+          continue;
+        }
+
+        token += ch;
         i++;
       }
-      if (i >= line.length || line[i] !== '"') {
-        throw new Error(`Unclosed quote in line: ${line}`);
+
+      if (!closed) {
+        throw new Error(
+          `Unclosed quote in line: ${line}`,
+        );
       }
-      i++;
-      tokens.push(token);
+
+      /*
+       * 終端クォートの直後は、空白または行末でなければ
+       * 書式エラーとする。
+       */
+      if (
+        i < line.length &&
+        !/\s/.test(line[i])
+      ) {
+        throw new Error(
+          `Unexpected character after closing quote ` +
+          `at position ${i + 1}: ${line}`,
+        );
+      }
     } else {
-      let token = "";
-      while (i < line.length && !/\s/.test(line[i])) {
+      /*
+       * クォートされていない引数。
+       */
+      while (
+        i < line.length &&
+        !/\s/.test(line[i])
+      ) {
+        if (line[i] === '"') {
+          throw new Error(
+            `Unexpected quote in unquoted argument ` +
+            `at position ${i + 1}: ${line}`,
+          );
+        }
+
         token += line[i];
         i++;
-      }
-      if (token.length > 0) {
-        tokens.push(token);
       }
     }
 
-    while (i < line.length && /\s/.test(line[i])) {
-      i++;
-    }
+    /*
+     * ""も空文字列引数として格納する必要があるため、
+     * token.lengthによる除外は行わない。
+     */
+    tokens.push(token);
+
+    skipSpaces();
   }
 
   if (tokens.length === 0) {
-    throw new Error(`Empty script line: ${line}`);
+    throw new Error(
+      `Empty script line: ${line}`,
+    );
   }
 
   return {
@@ -52,6 +169,52 @@ export function parseScriptLine(line) {
     args: tokens.slice(1),
   };
 }
+// export function parseScriptLine(line) {
+//   const tokens = [];
+//   let i = 0;
+
+//   while (i < line.length && /\s/.test(line[i])) {
+//     i++;
+//   }
+
+//   while (i < line.length) {
+//     if (line[i] === '"') {
+//       i++;
+//       let token = "";
+//       while (i < line.length && line[i] !== '"') {
+//         token += line[i];
+//         i++;
+//       }
+//       if (i >= line.length || line[i] !== '"') {
+//         throw new Error(`Unclosed quote in line: ${line}`);
+//       }
+//       i++;
+//       tokens.push(token);
+//     } else {
+//       let token = "";
+//       while (i < line.length && !/\s/.test(line[i])) {
+//         token += line[i];
+//         i++;
+//       }
+//       if (token.length > 0) {
+//         tokens.push(token);
+//       }
+//     }
+
+//     while (i < line.length && /\s/.test(line[i])) {
+//       i++;
+//     }
+//   }
+
+//   if (tokens.length === 0) {
+//     throw new Error(`Empty script line: ${line}`);
+//   }
+
+//   return {
+//     event: tokens[0],
+//     args: tokens.slice(1),
+//   };
+// }
 
 /**
  * @typedef {Object} ScriptStep

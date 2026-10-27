@@ -380,10 +380,12 @@ export class CliMonitor {
     });
     const stageRow = new BoxRenderable(this.renderer, {
       id: "stage-row",
-      width: "100%",
-      flexGrow: 1,
-      flexDirection: "row",
-      gap: 0,
+        width: "100%",
+        height: 1,
+        flexShrink:0,
+      // flexGrow: 1,
+        flexDirection: "row",
+        gap: 0,
     });
     stageRow.add(this.stageText);
     //   mainRow.add(this.statusBar);
