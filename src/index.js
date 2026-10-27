@@ -96,6 +96,9 @@ function generate_query_process_result(response)
 ///////////////////////////////////////
 async function read_to_lines(path)
 {
+    if (path=="") {
+        return [];
+    }
     const fd = await open(path);
     try {
         const input = fd.createReadStream().pipe(iconv.decodeStream('cp932'));
@@ -165,7 +168,7 @@ registerPayloadEncoder("query_recorder", (args) => {
     if (args.length < 1) {
       throw new Error("query_recorder encoder requires at least 1 arguments");
     }
-    return args;
+    return args.slice(1);
   } 
 );
 ///////////////////////////////////////
@@ -173,7 +176,7 @@ registerPayloadEncoder("record_pick", (args) => {
     if (args.length < 3) {
       throw new Error("record_pick encoder requires at least 3 arguments");
     }
-    return args;
+    return args.slice(1);
   } 
 );
 ///////////////////////////////////////
@@ -181,7 +184,7 @@ registerPayloadEncoder("record_reserve", (args) => {
     if (args.length < 3) {
       throw new Error("record_reserve encoder requires at least 3 arguments");
     }
-    return args;
+    return args.slice(1);
   } 
 );
 ///////////////////////////////////////
@@ -189,7 +192,7 @@ registerPayloadEncoder("record_range", (args) => {
     if (args.length < 3) {
       throw new Error("record_range encoder requires at least 3 arguments");
     }
-    return args;
+    return args.slice(1);
   } 
 );
 ///////////////////////////////////////
@@ -197,7 +200,7 @@ registerPayloadEncoder("history_pick", (args) => {
     if (args.length < 2) {
       throw new Error("history_pick encoder requires at least 2 arguments");
     }
-    return args;
+    return args.slice(1);
   } 
 );
 ///////////////////////////////////////
@@ -210,7 +213,7 @@ registerPayloadEncoder("REPL_cmd", (args) => {
     if (args.length < 1) {
       throw new Error("REPL_cmd encoder requires at least 1 arguments");
     }
-    return args;
+    return args.slice(1);
   } 
 );
 ///////////////////////////////////////
@@ -314,7 +317,7 @@ createSocketServer({
             checking.qr = true;
             
             monitor.clearStatus();
-            socket.timeout(3000).emit(
+            socket.timeout(2000).emit(
                 "query_recorder", "state",
                 {
                     serverTime: Date.now()
@@ -336,7 +339,7 @@ createSocketServer({
                     }
                 }
             );
-            socket.timeout(3000).emit(
+            socket.timeout(2000).emit(
                 "query_process",["stage","fps"
                                  ,"camera_type"   
                                  ,"frame_number"  
