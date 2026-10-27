@@ -1,4 +1,92 @@
 /**
+ * 次の形式の文字列をオブジェクトへ変換する。
+ *
+ *   {0:%s_%f.jpg,1:%s_%f.bin,2:%s_%f.bin}
+ *
+ * 変換結果:
+ *
+ *   {
+ *     "0": "%s_%f.jpg",
+ *     "1": "%s_%f.bin",
+ *     "2": "%s_%f.bin"
+ *   }
+ *
+ * @param {string} text
+ * @returns {Record<string, string>}
+ */
+export function parseStringMap(text) {
+  if (typeof text !== "string") {
+    throw new TypeError(
+      "parseStringMap: argument must be a string",
+    );
+  }
+
+  const trimmed = text.trim();
+
+  if (
+    !trimmed.startsWith("{") ||
+    !trimmed.endsWith("}")
+  ) {
+    throw new Error(
+      `Invalid map expression: ${text}`,
+    );
+  }
+
+  const contents = trimmed.slice(1, -1).trim();
+
+  /*
+   * Object.create(null)を使用すると、
+   * constructorや__proto__などの既存プロパティを
+   * 継承しない、純粋な辞書オブジェクトになる。
+   */
+  /** @type {Record<string, string>} */
+  const result = Object.create(null);
+
+  if (contents.length === 0) {
+    return result;
+  }
+
+  const entries = contents.split(",");
+
+  for (const entry of entries) {
+    /*
+     * split(":")では値の中にコロンがある場合も
+     * 分割されるため、最初のコロンだけを使用する。
+     */
+    const colonPosition = entry.indexOf(":");
+
+    if (colonPosition < 0) {
+      throw new Error(
+        `Invalid map entry; ":" is missing: ${entry}`,
+      );
+    }
+
+    const key = entry
+      .slice(0, colonPosition)
+      .trim();
+
+    const value = entry
+      .slice(colonPosition + 1)
+      .trim();
+
+    if (key.length === 0) {
+      throw new Error(
+        `Invalid map entry; key is empty: ${entry}`,
+      );
+    }
+
+    if (Object.hasOwn(result, key)) {
+      throw new Error(
+        `Duplicate map key: ${key}`,
+      );
+    }
+
+    result[key] = value;
+  }
+
+  return result;
+}
+/**
  * Parse one script line:
  *   <socket-message> [<arg1> [<arg2> ...]]
  * Double-quoted tokens may contain spaces.

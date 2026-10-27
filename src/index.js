@@ -19,6 +19,7 @@ import { onTabComplete } from "./handlers/tabCompleteHandler.js";
 import { registerSocketEventHandlers } from "./handlers/socketEventHandler.js";
 import { createSocketServer } from "./server.js";
 import { logScriptResult, runScript } from "./script/runScript.js";
+import { parseStringMap } from "./script/parseScript.js";
 import {registerPayloadEncoder} from "./script/payloadEncoders.js";
 
 const ireceiver = new ImageReceiver();
@@ -192,7 +193,14 @@ registerPayloadEncoder("record_range", (args) => {
     if (args.length < 3) {
       throw new Error("record_range encoder requires at least 3 arguments");
     }
-    return args.slice(1);
+    let enc_arg=[];
+    // title
+    enc_arg.push(args[0]);
+    // root
+    enc_arg.push(args[1]);
+    enc_arg.push(parseStringMap(args[2]));
+    
+    return enc_arg;
   } 
 );
 ///////////////////////////////////////
