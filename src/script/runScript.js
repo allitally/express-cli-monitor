@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { io } from "socket.io-client";
 import { parseScriptContent,createDeferred } from "./parseScript.js";
 import { encodePayload } from "./payloadEncoders.js";
+import { CliMonitor } from "../monitor/CliMonitor.js";
 
 const DEFAULT_ACK_TIMEOUT_MS = 5000;
 
@@ -333,11 +334,11 @@ export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ack
         const expectedText = step.expectedAck ?? "";
 
         if (receivedText !== expectedText) {
-          writePanelC?.(
+          monitor.writePanelC?.(
             `[${stepNo}] FAIL expected Ack: ${expectedText}, got: ${receivedText}`,
             "#f7768e",
           );
-          setStatus?.("Script failed", "#f7768e");
+          monitor.setStatus?.("Script failed", "#f7768e");
           return fail(scriptPath, {
               reason: "ack_mismatch",
               stepNo: stepNo,

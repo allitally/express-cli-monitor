@@ -1,0 +1,29 @@
+#
+# 
+#
+set_datarec_path /mnt/usb/image_test 32 32768 1024
+Ack(to=220000): OK
+
+exec_ips0 title . "" examples/cpp-client/IPS/Fr/set_parameters.ips
+Ack(to=1000): OK
+
+exec_ips0 dummy(64,64,8) . "" examples/cpp-client/IPS/Fr/mipi_init_framos.ips Scripts/dummy.bin
+Ack(to=10000): OK
+
+# On.send_ips_message=='Finished MIPI Initialization.': exec_ips0 bpara(1024,1024,8,json) Scripts/Framos1080Learning/ "" examples/cpp-client/IPS/Fr/learning_setup.ips Scripts/Framos1080Learning/framos30fps.json
+# Ack(to=1000): OK
+
+On.send_ips_message=='Finished MIPI Initialization.': exec_ips0 bpara(1024,1024,8,json) Scripts/Framos1080Learning/ "" examples/cpp-client/IPS/Fr/learning_setup.ips Scripts/Framos1080Learning/simple_thumbnail.json
+Ack(to=10000): OK
+
+exec_ips0 aimodel_load(8192,1024,8) Scripts/Framos1080Learning/ "" examples/cpp-client/IPS/Fr/aimodel_put.ips  Scripts/Framos1080Learning/airecv1_model.bin
+Ack(to=1000): OK
+
+exec_ips setup Scripts/Framos1080Learning/ "" examples/cpp-client/IPS/Fr/learning_exec.ips
+Ack(to=1000): OK
+
+exec_ips record Scripts "" test/IPS/set_record.ips
+Ack(to=1000): OK
+
+record_reserve :50-:100 /mnt/usb/reserved "{0:%t_%s_%f.jpg}"
+Ack(to=1000): OK

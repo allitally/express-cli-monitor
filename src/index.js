@@ -169,7 +169,7 @@ registerPayloadEncoder("query_recorder", (args) => {
     if (args.length < 1) {
       throw new Error("query_recorder encoder requires at least 1 arguments");
     }
-    return args.slice(1);
+    return args;
   } 
 );
 ///////////////////////////////////////
@@ -177,7 +177,14 @@ registerPayloadEncoder("record_pick", (args) => {
     if (args.length < 3) {
       throw new Error("record_pick encoder requires at least 3 arguments");
     }
-    return args.slice(1);
+    let enc_arg=[];
+    // title
+    enc_arg.push(args[0]);
+    // root
+    enc_arg.push(args[1]);
+    enc_arg.push(parseStringMap(args[2]));
+    
+    return enc_arg;
   } 
 );
 ///////////////////////////////////////
@@ -185,7 +192,14 @@ registerPayloadEncoder("record_reserve", (args) => {
     if (args.length < 3) {
       throw new Error("record_reserve encoder requires at least 3 arguments");
     }
-    return args.slice(1);
+    let enc_arg=[];
+    // title
+    enc_arg.push(args[0]);
+    // root
+    enc_arg.push(args[1]);
+    enc_arg.push(parseStringMap(args[2]));
+    
+    return enc_arg;
   } 
 );
 ///////////////////////////////////////
@@ -208,7 +222,7 @@ registerPayloadEncoder("history_pick", (args) => {
     if (args.length < 2) {
       throw new Error("history_pick encoder requires at least 2 arguments");
     }
-    return args.slice(1);
+    return args;
   } 
 );
 ///////////////////////////////////////
@@ -221,7 +235,7 @@ registerPayloadEncoder("REPL_cmd", (args) => {
     if (args.length < 1) {
       throw new Error("REPL_cmd encoder requires at least 1 arguments");
     }
-    return args.slice(1);
+    return args;
   } 
 );
 ///////////////////////////////////////

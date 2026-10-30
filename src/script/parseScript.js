@@ -433,7 +433,7 @@ export function parseScriptContent(content) {
     // 対応形式:
     //   Ack:
     //   Ack(to=1000):
-    const ackPattern = /^Ack(?:\(to=(\d+)\))?:(.*)$/;
+    const ackPattern = /^A[cC][kK](?:\(to=(\d+)\))?:(.*)$/;
 
     for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
         const line = rawLines[lineIndex].trim();

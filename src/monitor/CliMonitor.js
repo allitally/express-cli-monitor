@@ -111,74 +111,83 @@ class PlainLogPanel {
 }
 
 class ColoredLogPanel {
-  /**
-   * @param {import('@opentui/core').RenderContext} renderer
-   * @param {string} title
-   */
-  constructor(renderer, title) {
-    /** @type {{ text: string, color: string }[]} */
-    this.entries = [];
+    /**
+     * @param {import('@opentui/core').RenderContext} renderer
+     * @param {string} title
+     */
+    constructor(renderer, title) {
+        /** @type {{ text: string, color: string }[]} */
+        this.entries = [];
 
-    this.scrollbox = new ScrollBoxRenderable(renderer, {
-      id: `panel-${title}`,
-      flexGrow: 1,
-      width: "33%",
-      height: "100%",
-      stickyScroll: true,
-      stickyStart: "bottom",
-      border: true,
-      borderStyle: "single",
-      borderColor: "#565f89",
-      title,
-      titleColor: "#9ece6a",
-      viewportOptions: { backgroundColor: "#1a1b26" },
-      scrollbarOptions: {
-        trackOptions: {
-          foregroundColor: "#9ece6a",
-          backgroundColor: "#414868",
-        },
-      },
-    });
+        this.scrollbox = new ScrollBoxRenderable(renderer, {
+            id: `panel-${title}`,
+            flexGrow: 1,
+            width: "33%",
+            height: "100%",
+            stickyScroll: true,
+            stickyStart: "bottom",
+            border: true,
+            borderStyle: "single",
+            borderColor: "#565f89",
+            title,
+            titleColor: "#9ece6a",
+            viewportOptions: { backgroundColor: "#1a1b26" },
+            scrollbarOptions: {
+                trackOptions: {
+                    foregroundColor: "#9ece6a",
+                    backgroundColor: "#414868",
+                },
+            },
+        });
+      this.textContainer = new BoxRenderable(renderer, {
+          width: "100%",
+          flexDirection: "column",
+          paddingRight: 1,
+      });
 
-    this.text = new TextRenderable(renderer, {
-      content: "",
-      width: "100%",
-      selectable: true,
-    });
+      this.text = new TextRenderable(renderer, {
+          content: "",
+          width: "100%",
+          wrapMode: "char",
+          selectable: true,
+      });
 
-    this.scrollbox.add(this.text);
-  }
+      this.textContainer.add(this.text);
+      this.scrollbox.add(this.textContainer);
 
-  /** @param {string} text @param {string} [color='#FFFFFF'] */
-  append(text, color = "#FFFFFF") {
-    this.entries.push({ text, color });
-    if (this.entries.length > MAX_LOG_LINES) {
-      this.entries.splice(0, this.entries.length - MAX_LOG_LINES);
+        this.scrollbox.add(this.text);
     }
-    this.#refresh();
-  }
 
-  getPlainText() {
-    return this.entries.map((entry) => entry.text).join("\n");
-  }
-
-  clear() {
-    this.entries = [];
-    this.text.content = "";
-  }
-
-  #refresh() {
-    /** @type {import('@opentui/core/lib/styled-text.js').TextChunk[]} */
-    const chunks = [];
-    for (let i = 0; i < this.entries.length; i++) {
-      const { text, color } = this.entries[i];
-      chunks.push(fg(color)(text));
-      if (i < this.entries.length - 1) {
-        chunks.push({ __isChunk: true, text: "\n" });
-      }
+    /** @param {string} text @param {string} [color='#FFFFFF'] */
+    append(text, color = "#FFFFFF") {
+        this.entries.push({ text, color });
+        if (this.entries.length > MAX_LOG_LINES) {
+            this.entries.splice(0, this.entries.length - MAX_LOG_LINES);
+        }
+        this.#refresh();
     }
-    this.text.content = new StyledText(chunks);
-  }
+
+    getPlainText() {
+        return this.entries.map((entry) => entry.text).join("\n");
+    }
+
+    clear() {
+        this.entries = [];
+        this.text.content = "";
+    }
+
+    #refresh() {
+        /** @type {import('@opentui/core/lib/styled-text.js').TextChunk[]} */
+        const chunks = [];
+        for (let i = 0; i < this.entries.length; i++) {
+            const { text, color } = this.entries[i];
+            chunks.push(fg(color)(text));
+            if (i < this.entries.length - 1) {
+                chunks.push({ __isChunk: true, text: "\n" });
+            }
+        }
+        this.text.content = new StyledText(chunks);
+    }
 }
 
 export class CliMonitor {
