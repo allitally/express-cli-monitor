@@ -29,7 +29,15 @@ const scriptState = {
     process: Object.create(null),
     recorder: Object.create(null),
 };
-const RECORDER_STATE_KEYS = ["state", "session_id", "saved_first", "saved_last"];
+const RECORDER_STATE_LABELS = {
+    state: "ST",
+    saved_first: "FIRST",
+    saved_last: "LAST",
+    reserved_queue: "RQ",
+    session_id: "SESSID",
+    last_error: "ERR",
+};
+const RECORDER_STATE_KEYS = Object.keys(RECORDER_STATE_LABELS);
 
 function updateRecorderState(key, response) {
     if (response && typeof response === "object" && !Array.isArray(response)) {
@@ -50,7 +58,7 @@ function formatRecorderState() {
         return typeof current === "object" ? JSON.stringify(current) : String(current);
     };
     return RECORDER_STATE_KEYS
-        .map((key) => `${key}=${value(key)}`)
+        .map((key) => `${RECORDER_STATE_LABELS[key]}=${value(key)}`)
         .join(", ");
 }
 
