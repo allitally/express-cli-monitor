@@ -60,6 +60,33 @@ remote-output done-#{A}
   assert.deepEqual(commands.map((step) => step.args[0]), ["10", "30", "done-4"]);
 });
 
+test("labels commands with source lines and active while variable values", async () => {
+  const { commands } = await run(`var i=0
+while(#{i}<2) {
+  remote-output #{i}
+  i=#{i+1}
+}
+remote-output done`);
+
+  assert.deepEqual(
+    commands.map((step) => step.displayLabel),
+    ["[Line=3(i=0).]", "[Line=3(i=1).]", "[Line=6.]"],
+  );
+});
+
+test("labels nested loops with each condition variable", async () => {
+  const { commands } = await run(`var i=1
+var j=2
+while(i<2) {
+  while(j<3) {
+    remote-output nested
+    break
+  }
+  break
+}`);
+  assert.equal(commands[0].displayLabel, "[Line=5(i=1,j=2).]");
+});
+
 test("selects else branch and var remains script scoped", async () => {
   const { commands } = await run(`
 if(0) {
