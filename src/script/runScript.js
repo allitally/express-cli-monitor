@@ -18,6 +18,7 @@ const DEFAULT_ACK_TIMEOUT_MS = 5000;
  * @property {'ack_mismatch'|'ack_timeout'|'empty'|'connect_error'|'encoder_error'|'parse_error'|'unknown'} reason
  * @property {string} message
  * @property {number} [stepNo]
+ * @property {string} [displayLabel]
  * @property {string} [event]
  * @property {string} [expected]
  * @property {string} [got]
@@ -119,11 +120,11 @@ export function logScriptResult(result, logTarget = {}) {
   let message;
   if (result.reason === "ack_mismatch") {
     message =
-      `[script] FAIL (ACK mismatch at step ${result.stepNo}, event ${result.event}): ` +
+      `[script] FAIL (ACK mismatch at ${result.displayLabel ?? `step ${result.stepNo}`}, event ${result.event}): ` +
       `expected "${result.expected}", got "${result.got}"`;
   } else if (result.reason === "ack_timeout") {
     message =
-      `[script] FAIL (ACK timeout at step ${result.stepNo}, event ${result.event}): ` +
+      `[script] FAIL (ACK timeout at ${result.displayLabel ?? `step ${result.stepNo}`}, event ${result.event}): ` +
       result.message;
   } else {
     message = `[script] FAIL (${result.reason}): ${result.message}`;
@@ -286,7 +287,8 @@ function registerOnStep(
 
 export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ackTimeoutMs,
     on_events = undefined){
-    monitor.writePanelC(`Script: ${stepNo}:${step.args[0]}`, "#bb9af7");
+    const displayLabel = step.displayLabel ?? `[No.${stepNo}]`;
+    monitor.writePanelC(`Script: ${displayLabel}:${step.args[0]}`, "#bb9af7");
       let payload;
       try {
         payload = await encodePayload(step.event, step.args, monitor);
@@ -294,23 +296,24 @@ export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ack
 
       } catch (err) {
         // payload = encodePayload(step.event, step.args, monitor);
-          monitor.writePanelC(`catch: ${stepNo}:${JSON.stringify(step.args)}`, "#bb9af7");
+          monitor.writePanelC(`catch: ${displayLabel}:${JSON.stringify(step.args)}`, "#bb9af7");
         return fail(scriptPath, {
             reason : "encoder_error",
             stepNo : stepNo,
+            displayLabel,
             event  : step.event,
             message: err instanceof Error ? err.message : String(err),
         });
       }
 
       monitor.writePanelC?.(
-          `[No.${stepNo}] emit ${step.event} isArray=${Array.isArray(payload)}:${JSON.stringify(payload)}`,
+          `${displayLabel} emit ${step.event} isArray=${Array.isArray(payload)}:${JSON.stringify(payload)}`,
         "#7aa2f7",
       );
 
       if (step.ackMode === "pass") {
         socket.emit(step.event, ...payload);
-        monitor.writePanelC?.(`[${stepNo}] PASS (skip ack)`, "#9ece6a");
+        monitor.writePanelC?.(`${displayLabel} PASS (skip ack)`, "#9ece6a");
         return {ok:true};
       }
 
@@ -327,6 +330,7 @@ export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ack
           return fail(scriptPath, {
               reason: "ack_timeout",
               stepNo: stepNo,
+              displayLabel,
               event: step.event,
               message: err instanceof Error ? err.message : String(err),
           });
@@ -336,21 +340,22 @@ export async function run1Line(stepNo,step, socket,scriptPath, url, monitor, ack
 
         if (receivedText !== expectedText) {
           monitor.writePanelC?.(
-            `[${stepNo}] FAIL expected Ack: ${expectedText}, got: ${receivedText}`,
+            `${displayLabel} FAIL expected Ack: ${expectedText}, got: ${receivedText}`,
             "#f7768e",
           );
           monitor.setStatus?.("Script failed", "#f7768e");
           return fail(scriptPath, {
               reason: "ack_mismatch",
               stepNo: stepNo,
+              displayLabel,
               event: step.event,
               expected: expectedText,
               got: receivedText,
-              message: `ACK mismatch at step ${stepNo}`,
+              message: `ACK mismatch at ${displayLabel}`,
           });
         }
 
-        monitor.writePanelC?.(`[${stepNo}] PASS Ack: ${receivedText}`, "#9ece6a");
+        monitor.writePanelC?.(`${displayLabel} PASS Ack: ${receivedText}`, "#9ece6a");
         return {ok:true};
       }
 
@@ -462,7 +467,7 @@ export async function runScript({
             executeCommand: async (step, stepNo) => {
                 if (step.onEvent !== undefined) {
                     writePanelC?.(
-                        `onEvent ackMode=${step.ackMode},onEvent=${step.onEvent}`,
+                        `${step.displayLabel} onEvent ackMode=${step.ackMode},onEvent=${step.onEvent}`,
                         "#73daca",
                     );
                     const completion = registerOnStep(

@@ -235,8 +235,12 @@ function externalValue(name, state, line) {
   return group[parts[1]];
 }
 
+function normalizeExpression(source) {
+  return source.replace(/#\{([^{}]+)\}/g, "$1");
+}
+
 export function evaluateExpression(source, environment, state = {}, line) {
-  const tokens = tokenizeExpression(source, line);
+  const tokens = tokenizeExpression(normalizeExpression(source), line);
   let position = 0;
   const peek = (value) => tokens[position]?.value === value;
   const take = () => tokens[position++];
@@ -368,6 +372,31 @@ function evaluateAssignedValue(source, environment, state, line) {
   return evaluateExpression(source, environment, state, line);
 }
 
+function conditionValues(loopContexts, environment, state) {
+  const values = new Map();
+  for (const context of loopContexts) {
+    const tokens = tokenizeExpression(normalizeExpression(context.condition), context.line);
+    for (const token of tokens) {
+      if (token.type !== "name" || values.has(token.value)) continue;
+      const value = token.value.includes(".")
+        ? externalValue(token.value, state, context.line)
+        : environment.get(token.value, context.line);
+      values.set(token.value, value);
+    }
+  }
+  return [...values].map(([name, value]) => ({
+    name,
+    value: typeof value === "object" ? JSON.stringify(value) : String(value),
+  }));
+}
+
+function commandDisplayLabel(line, loopValues) {
+  const variables = loopValues
+    .map(({ name, value }) => `${name}=${value}`)
+    .join(",");
+  return `[Line=${line}${variables ? `(${variables})` : ""}.]`;
+}
+
 export async function executeScriptProgram(program, {
   state = {},
   executeCommand,
@@ -376,7 +405,7 @@ export async function executeScriptProgram(program, {
   const root = new Environment();
   let stepsExecuted = 0;
 
-  const executeBlock = async (statements, environment, loopDepth) => {
+  const executeBlock = async (statements, environment, loopDepth, loopContexts = []) => {
     for (const statement of statements) {
       if (statement.type === "declaration") {
         environment.declare(
@@ -400,12 +429,16 @@ export async function executeScriptProgram(program, {
             ? null
             : interpolate(statement.step.expectedAck, environment, state, statement.line),
         };
+        step.displayLabel = commandDisplayLabel(
+          statement.line,
+          conditionValues(loopContexts, environment, state),
+        );
         stepsExecuted++;
         await executeCommand(step, stepsExecuted);
       } else if (statement.type === "if") {
         const selected = truthy(evaluateExpression(statement.condition, environment, state, statement.line))
           ? statement.body : (statement.alternate ?? []);
-        const signal = await executeBlock(selected, environment.child(), loopDepth);
+        const signal = await executeBlock(selected, environment.child(), loopDepth, loopContexts);
         if (signal) return signal;
       } else if (statement.type === "while") {
         let iterations = 0;
@@ -413,7 +446,12 @@ export async function executeScriptProgram(program, {
           if (++iterations > maxLoopIterations) {
             throw new ScriptLanguageError(`while exceeded ${maxLoopIterations} iterations`, statement.line);
           }
-          const signal = await executeBlock(statement.body, environment.child(), loopDepth + 1);
+          const signal = await executeBlock(
+            statement.body,
+            environment.child(),
+            loopDepth + 1,
+            [...loopContexts, { condition: statement.condition, line: statement.line }],
+          );
           if (signal === "break") break;
           if (signal === "continue") continue;
         }
@@ -428,7 +466,7 @@ export async function executeScriptProgram(program, {
         }
         await new Promise((resolve) => setTimeout(resolve, duration));
       } else if (statement.type === "block") {
-        const signal = await executeBlock(statement.body, environment.child(), loopDepth);
+        const signal = await executeBlock(statement.body, environment.child(), loopDepth, loopContexts);
         if (signal) return signal;
       } else if (statement.type === "break" || statement.type === "continue") {
         if (loopDepth === 0) {
