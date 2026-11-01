@@ -83,7 +83,7 @@ if(recorder.state == "recording") {
 
 - `var` はスクリプト全体、`let` は定義された `{ ... }` ブロック内だけで有効です。
 - `名前=<式>` で、定義済み変数へ代入します。
-- 外部状態は `process.<キー>` と `recorder.<キー>` で参照します。`process` は定期的な `query_process` のレスポンス、`recorder` は `state`、`session_id`、`saved_first`、`saved_last` の各 `query_recorder` レスポンスです。
+- 外部状態は `process.<キー>` と `recorder.<キー>` で参照します。`process` は定期的な `query_process` のレスポンス、`recorder` は `state`、`saved_first`、`saved_last`、`reserved_queue`、`session_id`、`last_error` の各 `query_recorder` レスポンスです。
 - 算術演算は `+`、`-`、`*`、`/`、`%` と括弧に対応します。数値でない文字列への算術演算はエラーになり、スクリプトを中止します。
 - 条件式は `==`、`!=`、`<`、`<=`、`>`、`>=`、`&&`、`||` と括弧に対応します。数値の `0` は偽、0 以外の数値と空でない文字列は真です。
 - `while(<条件>) { ... }`、`if(<条件>) { ... } else { ... }` はネストできます。
@@ -178,7 +178,7 @@ examples/cpp-client/build/monitor_cpp_client.exe
 | 行 | 初期表示 | 接続中の表示 |
 |----|----------|----------------|
 | フレーム | `-` | `Frame(<fps> FPS): Total=<受信数>,Session=<id>,FN=<フレーム番号>` |
-| ステータス | `Listening on port <PORT>` | 接続・切断メッセージ、および `Recorder: <state>` |
+| ステータス | `Listening on port <PORT>` | 接続・切断メッセージ、および `Recorder: ST=..., FIRST=..., LAST=..., RQ=..., SESSID=..., ERR=...` |
 | ステージ | `Ready` | `Stage` `Camera` `Fnum` `FPS` `Firm` `RTE` `CompID` `Exec` `CEr` |
 
 ペイン内のマウス選択はターミナルのコピーに載りません。各ペインのバッファ全文をダンプします。既定では `dumps/` に UTF-8 で書き、同時にクリップボードへコピーします。ペインタイトルに現在のキーが出ます（例: `A: console.log [F6]`）。
