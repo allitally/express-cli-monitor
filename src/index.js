@@ -25,6 +25,11 @@ import {registerPayloadEncoder} from "./script/payloadEncoders.js";
 const ireceiver = new ImageReceiver();
 const PORT = Number(process.env.PORT ?? 3000);
 const SCRIPT_URL = process.env.MONITOR_URL ?? `http://localhost:${PORT}`;
+const scriptState = {
+    process: Object.create(null),
+    recorder: Object.create(null),
+};
+const RECORDER_STATE_KEYS = ["state", "session_id", "saved_first", "saved_last"];
 
 let cliOptions;
 try {
@@ -315,7 +320,8 @@ createSocketServer({
                     url: SCRIPT_URL,
                     monitor,
                     parent_socket: socket,
-                    on_events: g_messageOnEvt
+                    on_events: g_messageOnEvt,
+                    state: scriptState,
                 });
                 logScriptResult(result, { writePanelC: (text, color) => monitor.writePanelC(text, color) });
             } else if (cmd === "quit" || cmd === "exit") {
@@ -339,28 +345,31 @@ createSocketServer({
             checking.qr = true;
             
             monitor.clearStatus();
-            socket.timeout(2000).emit(
-                "query_recorder", "state",
-                {
-                    serverTime: Date.now()
-                },
-                (err, response) => {
-                    checking.qr = false;
-                    if (!socket.connected) {
-                        monitor.writePanelC(`Disconnected`, "#f7768e");
-                        return;
+            let recorderQueriesPending = RECORDER_STATE_KEYS.length;
+            for (const key of RECORDER_STATE_KEYS) {
+                socket.timeout(2000).emit(
+                    "query_recorder", key,
+                    { serverTime: Date.now() },
+                    (err, response) => {
+                        recorderQueriesPending--;
+                        checking.qr = recorderQueriesPending > 0;
+                        if (!socket.connected) {
+                            monitor.writePanelC(`Disconnected`, "#f7768e");
+                            return;
+                        }
+                        if (err) {
+                            const erlog =
+                                `(rec:${key})クライアント ${socket.id} から応答がありません`;
+                            monitor.writePanelC(erlog, "#f7768e");
+                            return;
+                        }
+                        scriptState.recorder[key] = response;
+                        if (key === "state") {
+                            monitor.addStatus(`Recorder: ${response}`, "#7aa2f7");
+                        }
                     }
-
-                    if (err) {
-                        const erlog = 
-                              `(rec)クライアント ${socket.id} から応答がありません`;
-                        monitor.writePanelC(erlog, "#f7768e");
-                        return;
-                    } else {
-                        monitor.addStatus(`Recorder: ${response["state"]}` , "#7aa2f7");
-                    }
-                }
-            );
+                );
+            }
             socket.timeout(2000).emit(
                 "query_process",["stage","fps"
                                  ,"camera_type"   
@@ -386,6 +395,9 @@ createSocketServer({
                         monitor.writePanelC(erlog, "#f7768e");
                         return;
                     } else {
+                        if (response && typeof response === "object") {
+                            Object.assign(scriptState.process, response);
+                        }
                         generate_query_process_result(response);                     
                     }
                 }
@@ -420,7 +432,8 @@ if (cliOptions.scriptPath) {
       url: SCRIPT_URL,
       monitor,
       parent_socket: undefined,
-      on_events: g_messageOnEvt
+      on_events: g_messageOnEvt,
+      state: scriptState,
   });
   logScriptResult(result, { writePanelC: (text, color) => monitor.writePanelC(text, color) });
   monitor.destroy();

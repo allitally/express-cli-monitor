@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { io } from "socket.io-client";
-import { parseScriptContent,createDeferred } from "./parseScript.js";
+import { createDeferred } from "./parseScript.js";
 import { encodePayload } from "./payloadEncoders.js";
 import { CliMonitor } from "../monitor/CliMonitor.js";
+import { executeScriptProgram, parseScriptProgram } from "./scriptLanguage.js";
 
 const DEFAULT_ACK_TIMEOUT_MS = 5000;
 
@@ -394,6 +395,7 @@ function shouldRunOnStep(step, receivedEvent, receivedArgs) {
  * @param {{ writePanelC?: (text: string, color?: string) => void, setStatus?: (text: string, color?: string) => void }} [options.monitor]
  * @param {number} [options.ackTimeoutMs]
  * @param {@type {Map<string, SocketHandler>} [options.on_events]
+ * @param {{ process?: Record<string, unknown>, recorder?: Record<string, unknown> }} [options.state]
  * @returns {Promise<ScriptRunResult>}
  */
 export async function runScript({
@@ -402,7 +404,8 @@ export async function runScript({
     monitor,
     ackTimeoutMs = DEFAULT_ACK_TIMEOUT_MS,
     parent_socket = undefined,
-    on_events = undefined
+    on_events = undefined,
+    state = {},
 }) {
     const clear_on_events = on_events?false:true;
     
@@ -413,10 +416,10 @@ export async function runScript({
           ? (text, color) => monitor.setStatus(text, color)
           : undefined;
 
-    let steps;
+    let program;
     try {
         const content = readFileSync(scriptPath, "utf8");
-        steps = parseScriptContent(content);
+        program = parseScriptProgram(content);
     } catch (err) {
         return fail(scriptPath, {
             reason: "parse_error",
@@ -424,7 +427,7 @@ export async function runScript({
         });
     }
 
-    if (steps.length === 0) {
+    if (program.length === 0) {
         return fail(scriptPath, {
             reason: "empty",
             message: "Script has no executable steps",
@@ -454,64 +457,50 @@ export async function runScript({
         if (on_events===undefined) {
             on_events = new Map();
         }
-        for (let i = 0; i < steps.length; i++) {
-            const step = steps[i];
-            const stepNo = i + 1;
-            if (i+1 < steps.length) {
-                if (steps[i+1].onEvent !== undefined) {
-                    steps[i+1].completionPromise
-                        = registerOnStep(socket
-                                         , steps[i+1]
-                                         , monitor
-                                         , ackTimeoutMs
-                                         , on_events);
-                }
-            }
-            if (step.onEvent !== undefined) {
-                writePanelC?.(`onEvent ackMode=${step.ackMode},onEvent=${step.onEvent}`,"#73daca");
-                if (!step.pre_registered) {
-                    step.completionPromise = registerOnStep(socket,step,
-                                      monitor,ackTimeoutMs, on_events);
-                    
-                }
-                if (step.ackMode === "ack" &&
-                        step.completionPromise !== undefined
-                   ) {
-                    try {
-                        /*
-                         * 条件に一致するイベントを受信し、
-                         * 送信メッセージのACKが返るまでここで待つ。
-                         */
-                        await step.completionPromise;
-                    } finally {
-                        unregisterOnHandler(
-                            socket,
-                            step.onEvent,
-                            on_events,
-                        );
+        const execution = await executeScriptProgram(program, {
+            state,
+            executeCommand: async (step, stepNo) => {
+                if (step.onEvent !== undefined) {
+                    writePanelC?.(
+                        `onEvent ackMode=${step.ackMode},onEvent=${step.onEvent}`,
+                        "#73daca",
+                    );
+                    const completion = registerOnStep(
+                        socket, step, monitor, ackTimeoutMs, on_events,
+                    );
+                    if (step.ackMode === "ack") {
+                        try {
+                            await completion;
+                        } finally {
+                            unregisterOnHandler(socket, step.onEvent, on_events);
+                        }
                     }
+                    return;
                 }
-                continue;
-            }
 
-            const received = await run1Line(stepNo,step,socket,scriptPath,
-                                      url,
-                                      monitor,
-                                      ackTimeoutMs
-                                      , on_events);
-            if (!received.ok) {
-                writePanelC(`Script:Error End in No.${stepNo}`,"#7aa2f7");                
-                return received;
-            }
-        }
+                const received = await run1Line(
+                    stepNo, step, socket, scriptPath, url, monitor,
+                    ackTimeoutMs, on_events,
+                );
+                if (!received.ok) {
+                    const error = new Error(received.message);
+                    error.scriptResult = received;
+                    throw error;
+                }
+            },
+        });
 
         setStatus?.("Script passed", "#9ece6a");
         return {
             ok: true,
             scriptPath,
-            stepsExecuted: steps.length,
+            stepsExecuted: execution.stepsExecuted,
         };
     } catch (err) {
+        if (err?.scriptResult) {
+            writePanelC?.("Script: Error End", "#7aa2f7");
+            return err.scriptResult;
+        }
         return fail(scriptPath, {
             reason: "unknown",
             message: err instanceof Error ? err.message : String(err),
