@@ -31,6 +31,29 @@ const scriptState = {
 };
 const RECORDER_STATE_KEYS = ["state", "session_id", "saved_first", "saved_last"];
 
+function updateRecorderState(key, response) {
+    if (response && typeof response === "object" && !Array.isArray(response)) {
+        for (const recorderKey of RECORDER_STATE_KEYS) {
+            if (Object.prototype.hasOwnProperty.call(response, recorderKey)) {
+                scriptState.recorder[recorderKey] = response[recorderKey];
+            }
+        }
+        return;
+    }
+    scriptState.recorder[key] = response;
+}
+
+function formatRecorderState() {
+    const value = (key) => {
+        const current = scriptState.recorder[key];
+        if (current === undefined || current === null) return "--";
+        return typeof current === "object" ? JSON.stringify(current) : String(current);
+    };
+    return RECORDER_STATE_KEYS
+        .map((key) => `${key}=${value(key)}`)
+        .join(", ");
+}
+
 let cliOptions;
 try {
     cliOptions = parseCliArgs(process.argv);
@@ -363,10 +386,11 @@ createSocketServer({
                             monitor.writePanelC(erlog, "#f7768e");
                             return;
                         }
-                        scriptState.recorder[key] = response;
-                        if (key === "state") {
-                            monitor.addStatus(`Recorder: ${response}`, "#7aa2f7");
-                        }
+                        updateRecorderState(key, response);
+                        monitor.addStatus(
+                            `Recorder: ${formatRecorderState()}`,
+                            "#7aa2f7",
+                        );
                     }
                 );
             }
