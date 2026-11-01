@@ -31,11 +31,14 @@ npm start
 npm start -- --script examples/scripts/sample.script
 ```
 
-TUI 起動後:
+TUI 起動後（クライアント接続後）:
 
 ```
 load examples/scripts/sample.script
+send remote-output hello from tui
 ```
+
+`send` は先頭の `send` を除いた残りを 1 行のスクリプトとして、接続中の Socket.IO クライアントへ送ります。`load` / `send` / `help` / `status` / `clear` / `quit` はクライアント接続後に有効です。`dump` と `bind` は接続前でも使えます。
 
 ### スクリプト形式
 
@@ -46,7 +49,10 @@ Ack:<期待するACK文字列>
 
 - 引数はスペース区切り。ダブルクォート `"..."` で空白を含む 1 引数にできます。
 - イベント行の次行が `Ack:` で始まる場合、その後の文字列と ACK 応答が一致すれば PASS、不一致ならテスト中断（終了コード 1）。
+- `Ack(to=<ミリ秒>):<期待するACK文字列>` で、そのステップだけの待ち時間を指定できます。
 - 次行が `Pass:` の場合は ACK を待たず次の送信へ進みます。
+- `On.<イベント>: <ソケットメッセージ> ...` は、そのイベントを受信してから右側の送信を実行します。
+- `On.<イベント>=='<正規表現>': <ソケットメッセージ> ...` は、受信した先頭引数が正規表現に一致したときだけ実行します。
 - `#` で始まる行と空行は無視します。
 
 ### ペイロード変換（コールバック）
@@ -66,6 +72,21 @@ registerAckHandler("my-event", (payload) => JSON.stringify(payload));
 |---------|------|
 | `remote-output` | `{ message: args.join(" ") }` |
 | `array-payload` | 引数配列をそのまま JSON 配列ペイロードにする |
+
+`src/index.js` が起動時に追加登録するイベント:
+
+| イベント | 引数 |
+|---------|------|
+| `exec_ips` | タイトル、ルート、1 行 IPS、任意でファイルパス |
+| `exec_ips0` | タイトル、ルート、1 行 IPS、任意でファイルパスとその次の引数 |
+| `query_recorder` | 1 個以上。引数をそのまま送る |
+| `record_pick` / `record_reserve` / `record_range` | タイトル、ルート、`{key:value,...}` 形式のマップ |
+| `history_pick` | 2 個以上。引数をそのまま送る |
+| `REPL_cmd` | 1 個以上。引数をそのまま送る |
+| `set_datarec_path` | 4 個以上。引数をそのまま送る |
+| `exit` | 引数をそのまま送る |
+
+マップの例: `{0:%s_%f.jpg,1:%s_%f.bin}` は `{ "0": "%s_%f.jpg", "1": "%s_%f.bin" }` になります。
 
 ## 別プロセスから Socket.IO 接続（サンプル）
 
@@ -101,17 +122,30 @@ examples/cpp-client/build/monitor_cpp_client.exe
 
 ## 画面レイアウト
 
+上から、状態表示 3 行、ログ 3 ペイン、コマンド入力 3 行です。
+
 ```
-┌─ ステータス（1行）────────────────────────────────────┐
+┌─ フレーム（1行） Frame 受信状態 ──────────────────────┐
+├─ ステータス（1行） 接続 / Recorder ───────────────────┤
+├─ ステージ（1行） query_process ───────────────────────┤
 ├───────────────┬───────────────┬───────────────────────┤
 │ A: console.log│ B: socket.io  │ C: info（色付き）      │
 │ （スクロール） │ （スクロール） │ （スクロール）          │
 ├───────────────┴───────────────┴───────────────────────┤
-│ コマンド入力（3行） [Enter:実行] [Tab:補完] [↑↓:履歴]   │
+│ コマンド入力（3行）                                     │
+│ [Enter:実行] [Shift+Enter:改行] [Tab:補完] [↑↓:履歴]   │
 └───────────────────────────────────────────────────────┘
 ```
 
-ペイン内のマウス選択はターミナルのコピーに載りません。各ペインのバッファ全文をダンプします。既定では `dumps/` に UTF-8 で書き、同時にクリップボードへコピーします。ペインタイトルに現在のキーが出ます。
+クライアント接続中は 5 秒ごとに上 3 行を更新します。
+
+| 行 | 初期表示 | 接続中の表示 |
+|----|----------|----------------|
+| フレーム | `-` | `Frame(<fps> FPS): Total=<受信数>,Session=<id>,FN=<フレーム番号>` |
+| ステータス | `Listening on port <PORT>` | 接続・切断メッセージ、および `Recorder: <state>` |
+| ステージ | `Ready` | `Stage` `Camera` `Fnum` `FPS` `Firm` `RTE` `CompID` `Exec` `CEr` |
+
+ペイン内のマウス選択はターミナルのコピーに載りません。各ペインのバッファ全文をダンプします。既定では `dumps/` に UTF-8 で書き、同時にクリップボードへコピーします。ペインタイトルに現在のキーが出ます（例: `A: console.log [F6]`）。
 
 | キー | 動作 |
 |------|------|
@@ -139,15 +173,23 @@ npm start -- --dump-key-a alt+a --dump-dir logs/dumps
 
 | API | 説明 |
 |-----|------|
-| `monitor.setStatus(text, color)` | ステータス行へ色付き文字列を表示 |
+| `monitor.setFrameStatus(text, color)` | 最上段のフレーム行へ色付き文字列を表示（既定色 `#FFFF00`） |
+| `monitor.setStatus(text, color)` | 2 段目のステータス行へ色付き文字列を表示（既定色 `#00FF00`） |
+| `monitor.addStatus(text, color)` | ステータス行を上書きする |
+| `monitor.clearStatus()` | ステータス行を空にする |
+| `monitor.addStageStatus(text, color)` | 3 段目のステージ行へ色付き文字列を表示（既定色 `#00FF00`） |
 | `onCommandExecute(text, args)` | Enter 確定時のコマンド実行ハンドラ |
 | `onTabComplete(args)` | Tab 押下時の補完ハンドラ（引数配列を受け取る） |
+| Enter / Shift+Enter | 実行 / 入力欄内の改行 |
 | ↑ / ↓ | コマンド履歴（組み込み） |
 | F6 / F7 / F8 / F9 | ペイン A / B / C / 全部をダンプ（キーは `bind` で変更） |
 | `dump <pane> [file]` | 指定ペインをファイルとクリップボードへダンプ |
 | `bind <pane> <key>` | ダンプのショートカットを変更。`none` で解除 |
+| `send <event> [args...]` | 接続中クライアントへ 1 イベントを送る |
+| `load <file>` | スクリプトを実行する |
+| `help` / `status` / `clear` / `quit` | 使い方表示 / ポート表示 / ログ消去 / 終了 |
 | パネル A | `console.log()` を横取りして表示 |
-| パネル B | Socket.IO `remote-output` イベントの出力 |
+| パネル B | Socket.IO `remote-output` と `send_ips_message` の出力 |
 | `monitor.writePanelC(text, color)` | パネル C へ色付き文字列出力 |
 
 ## カスタマイズ
