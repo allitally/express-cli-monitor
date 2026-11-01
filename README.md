@@ -55,6 +55,42 @@ Ack:<期待するACK文字列>
 - `On.<イベント>=='<正規表現>': <ソケットメッセージ> ...` は、受信した先頭引数が正規表現に一致したときだけ実行します。
 - `#` で始まる行と空行は無視します。
 
+### 変数と制御構文
+
+`#{<式>}` をコマンド名、引数、期待する ACK に記述すると、実行時の値に置換されます。
+
+```text
+var count=0
+var limit=3
+
+while(count < limit) {
+  count=#{count+1}
+  if(count == 2) {
+    continue
+  }
+  wait(100)
+  send-event frame-#{process.frame_number} count-#{count}
+  Ack: ok
+}
+
+if(recorder.state == "recording") {
+  let session=#{recorder.session_id}
+  remote-output session=#{session}
+} else {
+  remote-output recorder-is-not-running
+}
+```
+
+- `var` はスクリプト全体、`let` は定義された `{ ... }` ブロック内だけで有効です。
+- `名前=<式>` で、定義済み変数へ代入します。
+- 外部状態は `process.<キー>` と `recorder.<キー>` で参照します。`process` は定期的な `query_process` のレスポンス、`recorder` は `state`、`session_id`、`saved_first`、`saved_last` の各 `query_recorder` レスポンスです。
+- 算術演算は `+`、`-`、`*`、`/`、`%` と括弧に対応します。数値でない文字列への算術演算はエラーになり、スクリプトを中止します。
+- 条件式は `==`、`!=`、`<`、`<=`、`>`、`>=`、`&&`、`||` と括弧に対応します。数値の `0` は偽、0 以外の数値と空でない文字列は真です。
+- `while(<条件>) { ... }`、`if(<条件>) { ... } else { ... }` はネストできます。
+- `break` と `continue` は、最も内側の `while` に作用します。
+- `wait(<時間>)` は指定したミリ秒だけ非同期で待機します。待機中も `query_process` と `query_recorder` による状態更新は継続します。時間には数値変数や算術式も使用できます。
+- 無限ループ対策として、1 個の `while` は最大 100,000 回まで実行します。
+
 ### ペイロード変換（コールバック）
 
 `src/script/payloadEncoders.js` で `<ソケットメッセージ>` 名をキーに、引数配列から Socket.IO ペイロードへ変換する関数を登録します。
