@@ -109,6 +109,48 @@ function parseBlock(lines, start, inBlock = false) {
       continue;
     }
 
+    const fileCheck = item.text.match(/^FILE\s*\((.*)\)\s*:\s*(.+)$/);
+    if (fileCheck) {
+      if (!fileCheck[1].trim()) throw new ScriptLanguageError("FILE condition is empty", item.line);
+      if (!fileCheck[2].trim()) throw new ScriptLanguageError("FILE pattern is empty", item.line);
+      statements.push({
+        type: "file",
+        condition: fileCheck[1],
+        pattern: fileCheck[2].trim(),
+        line: item.line,
+      });
+      index++;
+      continue;
+    }
+
+    if (/^load(?:\s|$)/.test(item.text)) {
+      let parsed;
+      try {
+        parsed = parseScriptContent(item.text)[0];
+      } catch (error) {
+        throw new ScriptLanguageError(error instanceof Error ? error.message : String(error), item.line);
+      }
+      if (parsed.event !== "load" || parsed.args.length === 0) {
+        throw new ScriptLanguageError("load requires a script file", item.line);
+      }
+      const parameters = [];
+      for (const argument of parsed.args.slice(1)) {
+        const match = String(argument).match(/^([A-Za-z_$][A-Za-z0-9_$]*)=(.*)$/);
+        if (!match) {
+          throw new ScriptLanguageError(`Invalid load parameter: ${argument}`, item.line);
+        }
+        parameters.push({ name: match[1], value: match[2] });
+      }
+      statements.push({
+        type: "load",
+        scriptPath: String(parsed.args[0]),
+        parameters,
+        line: item.line,
+      });
+      index++;
+      continue;
+    }
+
     const control = item.text.match(/^(while|if)\s*\((.*)\)\s*\{$/);
     if (control) {
       if (!control[2].trim()) throw new ScriptLanguageError("Condition is empty", item.line);
@@ -225,7 +267,7 @@ function numeric(value, operator, line) {
 
 function externalValue(name, state, line) {
   const parts = name.split(".");
-  if (parts.length !== 2 || !["process", "recorder"].includes(parts[0])) {
+  if (parts.length !== 2 || !["process", "recorder", "Image"].includes(parts[0])) {
     throw new ScriptLanguageError(`Undefined variable: ${name}`, line);
   }
   const group = state?.[parts[0]];
@@ -239,7 +281,7 @@ function normalizeExpression(source) {
   return source.replace(/#\{([^{}]+)\}/g, "$1");
 }
 
-export function evaluateExpression(source, environment, state = {}, line) {
+function evaluateExpressionInternal(source, environment, state, line, syntaxOnly) {
   const tokens = tokenizeExpression(normalizeExpression(source), line);
   let position = 0;
   const peek = (value) => tokens[position]?.value === value;
@@ -342,9 +384,13 @@ export function evaluateExpression(source, environment, state = {}, line) {
     return left;
   };
 
-  const value = logicalOr(true);
+  const value = logicalOr(!syntaxOnly);
   if (position !== tokens.length) throw new ScriptLanguageError(`Unexpected token: ${tokens[position].value}`, line);
   return value;
+}
+
+export function evaluateExpression(source, environment, state = {}, line) {
+  return evaluateExpressionInternal(source, environment, state, line, false);
 }
 
 function truthy(value) {
@@ -356,6 +402,66 @@ function truthy(value) {
 export function interpolate(text, environment, state, line) {
   return text.replace(/#\{([^{}]+)\}/g, (_match, expression) =>
     String(evaluateExpression(expression, environment, state, line)));
+}
+
+function validateInterpolations(text, line) {
+  let position = 0;
+  while ((position = text.indexOf("#{", position)) >= 0) {
+    const end = text.indexOf("}", position + 2);
+    if (end < 0) throw new ScriptLanguageError("Unclosed interpolation", line);
+    const expression = text.slice(position + 2, end);
+    if (!expression || /[{}]/.test(expression)) {
+      throw new ScriptLanguageError("Invalid interpolation", line);
+    }
+    evaluateExpressionInternal(expression, null, {}, line, true);
+    position = end + 1;
+  }
+}
+
+function validateAssignedExpression(source, line) {
+  const exactInterpolation = source.match(/^#\{([^{}]+)\}$/);
+  if (exactInterpolation) {
+    evaluateExpressionInternal(exactInterpolation[1], null, {}, line, true);
+  } else if (source.includes("#{")) {
+    validateInterpolations(source, line);
+  } else if (!IDENTIFIER.test(source)) {
+    evaluateExpressionInternal(source, null, {}, line, true);
+  }
+}
+
+export function validateScriptProgram(program) {
+  const validateBlock = (statements, loopDepth = 0) => {
+    for (const statement of statements) {
+      if (statement.type === "declaration" || statement.type === "assignment") {
+        validateAssignedExpression(statement.expression, statement.line);
+      } else if (statement.type === "command") {
+        validateInterpolations(statement.step.event, statement.line);
+        statement.step.args.forEach((arg) => validateInterpolations(String(arg), statement.line));
+        if (statement.step.expectedAck !== null) {
+          validateInterpolations(statement.step.expectedAck, statement.line);
+        }
+      } else if (statement.type === "if" || statement.type === "while") {
+        evaluateExpressionInternal(statement.condition, null, {}, statement.line, true);
+        validateBlock(statement.body, loopDepth + (statement.type === "while" ? 1 : 0));
+        if (statement.alternate) validateBlock(statement.alternate, loopDepth);
+      } else if (statement.type === "wait") {
+        evaluateExpressionInternal(statement.expression, null, {}, statement.line, true);
+      } else if (statement.type === "file") {
+        evaluateExpressionInternal(statement.condition, null, {}, statement.line, true);
+        validateInterpolations(statement.pattern, statement.line);
+      } else if (statement.type === "load") {
+        if (statement.scriptPath.includes("#{")) {
+          throw new ScriptLanguageError("load script path must be a literal path", statement.line);
+        }
+        statement.parameters.forEach(({ value }) => validateInterpolations(value, statement.line));
+      } else if (statement.type === "block") {
+        validateBlock(statement.body, loopDepth);
+      } else if ((statement.type === "break" || statement.type === "continue") && loopDepth === 0) {
+        throw new ScriptLanguageError(`${statement.type} is only valid inside while`, statement.line);
+      }
+    }
+  };
+  validateBlock(program);
 }
 
 function evaluateAssignedValue(source, environment, state, line) {
@@ -400,9 +506,15 @@ function commandDisplayLabel(line, loopValues) {
 export async function executeScriptProgram(program, {
   state = {},
   executeCommand,
+  scheduleFileCheck,
+  executeLoad,
+  initialVariables = {},
   maxLoopIterations = 100000,
 } = {}) {
   const root = new Environment();
+  for (const [name, value] of Object.entries(initialVariables)) {
+    root.declare(name, value, "let");
+  }
   let stepsExecuted = 0;
 
   const executeBlock = async (statements, environment, loopDepth, loopContexts = []) => {
@@ -434,7 +546,7 @@ export async function executeScriptProgram(program, {
           conditionValues(loopContexts, environment, state),
         );
         stepsExecuted++;
-        await executeCommand(step, stepsExecuted);
+        await executeCommand(step, stepsExecuted, statement.line);
       } else if (statement.type === "if") {
         const selected = truthy(evaluateExpression(statement.condition, environment, state, statement.line))
           ? statement.body : (statement.alternate ?? []);
@@ -465,6 +577,23 @@ export async function executeScriptProgram(program, {
           throw new ScriptLanguageError("wait duration must be a non-negative number", statement.line);
         }
         await new Promise((resolve) => setTimeout(resolve, duration));
+      } else if (statement.type === "file") {
+        if (truthy(evaluateExpression(statement.condition, environment, state, statement.line))) {
+          if (typeof scheduleFileCheck !== "function") {
+            throw new ScriptLanguageError("FILE checks are not configured", statement.line);
+          }
+          const pattern = interpolate(statement.pattern, environment, state, statement.line);
+          scheduleFileCheck(pattern, statement.line);
+        }
+      } else if (statement.type === "load") {
+        if (typeof executeLoad !== "function") {
+          throw new ScriptLanguageError("load is not configured", statement.line);
+        }
+        const parameters = Object.fromEntries(statement.parameters.map(({ name, value }) => [
+          name,
+          interpolate(value, environment, state, statement.line),
+        ]));
+        await executeLoad(statement.scriptPath, parameters, statement.line);
       } else if (statement.type === "block") {
         const signal = await executeBlock(statement.body, environment.child(), loopDepth, loopContexts);
         if (signal) return signal;

@@ -28,6 +28,7 @@ const SCRIPT_URL = process.env.MONITOR_URL ?? `http://localhost:${PORT}`;
 const scriptState = {
     process: Object.create(null),
     recorder: Object.create(null),
+    Image: ireceiver,
 };
 const RECORDER_STATE_LABELS = {
     state: "ST",
@@ -343,7 +344,7 @@ createSocketServer({
                 
             } else if (cmd === "load") {
                 if (args.length < 2) {
-                    monitor.writePanelC("usage: load <script-file>", "#f7768e");
+                    monitor.writePanelC("usage: load <script-file> [name=value ...]", "#f7768e");
                     return;
                 }
                 const result = await runScript({
@@ -353,6 +354,7 @@ createSocketServer({
                     parent_socket: socket,
                     on_events: g_messageOnEvt,
                     state: scriptState,
+                    parameters: args.slice(2),
                 });
                 logScriptResult(result, { writePanelC: (text, color) => monitor.writePanelC(text, color) });
             } else if (cmd === "quit" || cmd === "exit") {

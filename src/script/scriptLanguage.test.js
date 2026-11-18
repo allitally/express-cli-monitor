@@ -1,15 +1,21 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import {
   executeScriptProgram,
   parseScriptProgram,
   ScriptLanguageError,
+  validateScriptProgram,
 } from "./scriptLanguage.js";
+import { verifyFileSequence } from "./runScript.js";
 
-async function run(source, state = {}) {
+async function run(source, state = {}, options = {}) {
   const commands = [];
   const result = await executeScriptProgram(parseScriptProgram(source), {
     state,
+    ...options,
     executeCommand: async (step) => commands.push(step),
   });
   return { commands, result };
@@ -38,6 +44,71 @@ test("reads live process and recorder state", async () => {
     state,
   );
   assert.deepEqual(commands[0].args, ["42", "session-7"]);
+});
+
+test("reads ImageReceiver members in expressions and interpolations", async () => {
+  const state = { Image: { lastFrameNumber: 3000, fps: 29.97 } };
+  const { commands } = await run(`
+if(Image.lastFrameNumber >= 3000) {
+  remote-output #{Image.lastFrameNumber} #{Image.fps}
+}`, state);
+  assert.deepEqual(commands[0].args, ["3000", "29.97"]);
+});
+
+test("executes FILE checks only when their condition is true", async () => {
+  const checked = [];
+  await run(`
+FILE(#{Image.lastFrameNumber}>=3000): /mnt/usb/image/*_*_{0-49}.jpg
+FILE(Image.lastFrameNumber<3000): /not/checked/{0-1}.jpg
+`, { Image: { lastFrameNumber: 3000 } }, {
+    scheduleFileCheck: (pattern) => checked.push(pattern),
+  });
+  assert.deepEqual(checked, ["/mnt/usb/image/*_*_{0-49}.jpg"]);
+});
+
+test("verifies wildcard file sequences and reports gaps", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "script-file-check-"));
+  try {
+    await Promise.all([0, 1, 2].map((number) =>
+      writeFile(path.join(directory, `session_image_${number}.jpg`), "")));
+    await verifyFileSequence(path.join(directory, "*_*_{0-2}.jpg"));
+
+    await rm(path.join(directory, "session_image_1.jpg"));
+    await assert.rejects(
+      () => verifyFileSequence(path.join(directory, "*_*_{0-2}.jpg")),
+      /missing: 1/,
+    );
+    await assert.rejects(
+      () => verifyFileSequence(path.join(directory, "*_*_{0-2).jpg")),
+      /exactly one sequence range/,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("validates all expression syntax before execution", () => {
+  assert.throws(
+    () => validateScriptProgram(parseScriptProgram("if(1 + ) {\nremote-output x\n}")),
+    /Expected expression/,
+  );
+  assert.throws(
+    () => validateScriptProgram(parseScriptProgram("remote-output #{value")),
+    /Unclosed interpolation/,
+  );
+});
+
+test("injects load parameters and invokes a subscript with resolved arguments", async () => {
+  const loads = [];
+  const { commands } = await run(`
+remote-output #{param1} #{param2}
+load child.scr childParam=#{param1}
+`, {}, {
+    initialVariables: { param1: "4", param2: "/mnt/usb/aaa.txt" },
+    executeLoad: async (scriptPath, parameters) => loads.push({ scriptPath, parameters }),
+  });
+  assert.deepEqual(commands[0].args, ["4", "/mnt/usb/aaa.txt"]);
+  assert.deepEqual(loads, [{ scriptPath: "child.scr", parameters: { childParam: "4" } }]);
 });
 
 test("executes nested while, if, continue, break, and block-scoped let", async () => {
